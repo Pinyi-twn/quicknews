@@ -444,85 +444,59 @@ async function fetchAllPrices() {
 
 // ── 抓取財經新聞 RSS ─────────────────────────────────────────
 async function fetchNews() {
-  const Q = encodeURIComponent('台積電 OR 台股 OR 聯發科 OR 美股 OR Fed');
-  const GOOGLE_RSS = `https://news.google.com/rss/search?q=${Q}&hl=zh-TW&gl=TW&ceid=TW:zh-Hant`;
-
-  // 解析 RSS items（支援 rss2json 格式 或 DOMParser 格式）
-  function parseItems(items) {
-    return items.slice(0, 6).map(item => {
-      const title = (item.title || item.querySelector?.('title')?.textContent || '').replace(/ - [^-]+$/, '').trim();
-      const rawBody = item.description || item.querySelector?.('description')?.textContent || '';
-      const body = rawBody.replace(/<[^>]+>/g,'').slice(0,120).trim() + '…';
-      const link = item.link || item.querySelector?.('link')?.nextSibling?.textContent || item.querySelector?.('guid')?.textContent || '';
-      const pubDate = new Date(item.pubDate || item.querySelector?.('pubDate')?.textContent || '');
-      const t = isNaN(pubDate) ? '' : `${String(pubDate.getHours()).padStart(2,'0')}:${String(pubDate.getMinutes()).padStart(2,'0')}`;
-      let tag='財經', tc='b-macro';
-      if (/台積電|半導體|晶片|CoWoS|輝達|NVIDIA|AI/i.test(title)) { tag='半導體'; tc='b-semi'; }
-      else if (/Fed|聯準會|利率|通膨|降息|升息|美元/i.test(title)) { tag='總經'; tc='b-macro'; }
-      else if (/法說|財報|EPS|獲利|營收/i.test(title)) { tag='財報'; tc='b-report'; }
-      else if (/美股|S&P|那斯達克|NVDA|AAPL|TSLA/i.test(title)) { tag='美股'; tc='b-us'; }
-      return { tag, tc, title, body, url: link, t };
-    }).filter(n => n.title);
+  try {
+    const res = await fetch(`${VERCEL_API}/api/news`);
+    if (!res.ok) throw new Error(res.status);
+    const json = await res.json();
+    if (json.items && json.items.length >= 2) {
+      console.log('[QN] 新聞', json.count, '筆更新成功');
+      return json.items;
+    }
+  } catch(e) {
+    console.log('[QN] 新聞 API 失敗:', e.message);
   }
-
-  // 來源 1：rss2json.com（直接呼叫，不過 proxy）
-  try {
-    const res = await fetch(
-      `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(GOOGLE_RSS)}&api_key=&count=8`,
-      { signal: AbortSignal.timeout(7000) }
-    );
-    if (res.ok) {
-      const data = await res.json();
-      if (data?.status === 'ok' && data?.items?.length) {
-        const items = parseItems(data.items);
-        if (items.length) return items;
-      }
-    }
-  } catch(e) {}
-
-  // 來源 2：透過 allorigins proxy 取 XML 後用 DOMParser 解析
-  try {
-    const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(GOOGLE_RSS)}`;
-    const res = await fetch(proxyUrl, { signal: AbortSignal.timeout(8000) });
-    if (res.ok) {
-      const json = await res.json();
-      const xml = json?.contents;
-      if (xml && xml.length > 100) {
-        const doc = new DOMParser().parseFromString(xml, 'text/xml');
-        const xmlItems = [...doc.querySelectorAll('item')];
-        if (xmlItems.length) {
-          const items = parseItems(xmlItems);
-          if (items.length) return items;
-        }
-      }
-    }
-  } catch(e) {}
-
-  // 來源 3：corsproxy.io
-  try {
-    const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(GOOGLE_RSS)}`;
-    const res = await fetch(proxyUrl, { signal: AbortSignal.timeout(8000) });
-    if (res.ok) {
-      const xml = await res.text();
-      if (xml && xml.length > 100) {
-        const doc = new DOMParser().parseFromString(xml, 'text/xml');
-        const xmlItems = [...doc.querySelectorAll('item')];
-        if (xmlItems.length) {
-          const items = parseItems(xmlItems);
-          if (items.length) return items;
-        }
-      }
-    }
-  } catch(e) {}
-
   return null;
 }
+
 
 // ── 靜態備用新聞（API 失敗時） ────────────────────────────────
 const FALLBACK_NEWS = [
   {tag:'提示',tc:'b-macro',title:'正在載入最新財經新聞…',body:'請確認網路連線正常。本 App 使用 Google News RSS 抓取即時財經資訊。',ai:'網路連線後將自動顯示最新新聞。',t:'--:--'},
 ];
 // ── 用 Claude API 對新聞批次生成 AI 解讀 ─────────────────────
+async function fetchInstitutional() {
+  try {
+    const today = new Date();
+    const dateStr = today.getFullYear() +
+      String(today.getMonth()+1).padStart(2,'0') +
+      String(today.getDate()).padStart(2,'0');
+    const url = `https://www.twse.com.tw/rwd/zh/fund/T86?date=${dateStr}&selectType=ALL&response=json`;
+    const res = await fetch(`${VERCEL_API}/api/quote?twse_fund=${dateStr}`);
+    // 若 Vercel 沒有這個 endpoint，直接嘗試 TWSE（有時允許跨域）
+    const r2 = await fetch(url, {headers: {'Accept':'application/json'}});
+    if (!r2.ok) throw new Error('TWSE ' + r2.status);
+    const data = await r2.json();
+    if (!data || data.stat !== 'OK' || !data.data) return null;
+    let foreign = 0, trust = 0, dealer = 0;
+    data.data.forEach(row => {
+      foreign += parseInt((row[12]||'0').replace(/,/g,'')) || 0;
+      trust   += parseInt((row[13]||'0').replace(/,/g,'')) || 0;
+      dealer  += parseInt((row[14]||'0').replace(/,/g,'')) || 0;
+    });
+    const toYi = v => (v / 100000000).toFixed(1);
+    const fmt  = v => (v >= 0 ? '+' : '') + toYi(v) + '億';
+    return {
+      foreign: fmt(foreign), trust: fmt(trust),
+      dealer: fmt(dealer), total: fmt(foreign+trust+dealer),
+      foreignUp: foreign>=0, trustUp: trust>=0,
+      dealerUp: dealer>=0, totalUp: (foreign+trust+dealer)>=0
+    };
+  } catch(e) {
+    console.log('[QN] 法人資料失敗:', e.message);
+    return null;
+  }
+}
+
 async function generateNewsAI(newsItems) {
   try {
     const headlines = newsItems.slice(0,5).map((n,i) =>
