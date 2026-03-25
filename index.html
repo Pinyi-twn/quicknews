@@ -386,6 +386,8 @@ const VERCEL_API = 'https://quicknews-api.vercel.app';
 
 const YF = 'https://query1.finance.yahoo.com/v8/finance/chart/';
 let liveData = {};
+let liveSent = null;
+let liveInst = null;
 
 // ── 股票代碼對照表 ────────────────────────────────────────────
 const STOCK_MAP = {
@@ -719,96 +721,89 @@ const CHIPS_LS={
 };
 const QUICK_QS=['台積電現在能買嗎？','VIX飆高怎麼辦？','外資連買代表什麼？','融資高代表什麼？','今日籌碼解析','貪婪指數解讀'];
 
-let liveSent = null;
-let liveInst = null;
 let isDark=true, sentMkt='tw', chipsMktLs='tw', chatHistory=[];
 
 // ── INIT ─────────────────────────────────────────────────────────
-window.addEventListener('DOMContentLoaded', async () => {
-  // 1. 先用 fallback 資料讓畫面立刻顯示
+window.addEventListener('DOMContentLoaded', () => {
+  // ① 立刻用靜態資料渲染，確保畫面有內容
   initDate();
-  showLoadingTicker();
-  showLoadingNews();
+  initTicker();
+  initIndices();
+  initNews();
   renderSentiment('tw');
   renderChips('inst');
   initAI();
-
   const t = nowTime();
   document.getElementById('sent-time').textContent  = t + ' 更新';
   document.getElementById('chips-time').textContent = t + ' 更新';
-
   if (window.matchMedia('(prefers-color-scheme:light)').matches) {
     isDark = false; document.body.dataset.theme = 'light';
     document.getElementById('dark-tog').classList.remove('on');
     document.getElementById('theme-btn').textContent = '☀️';
   }
 
-  // 2. 平行抓取即時報價 + 新聞 + 籌碼
-  const [_, newsItems, instData, usData] = await Promise.all([
-    fetchAllPrices(),
-    fetchNews(),
-    fetchInstitutional(),
-    fetchUSMarketData(),
-  ]);
-  if (usData) liveUSData = usData;
+  // ② 延遲 500ms 背景抓即時資料（不阻塞畫面）
+  setTimeout(async () => {
+    try {
+      // 股價
+      await fetchAllPrices();
+      updateTicker();
+      updateIndices();
+      updateMarketSummary();
+      // 情緒（需要 liveData）
+      liveSent = await fetchSentimentData();
+      renderSentiment(sentMkt);
+      // 籌碼
+      const instData = await fetchInstitutional();
+      if (instData) { liveInst = instData; renderChips(curChipsTab); }
+      // 美股 P/E
+      const usData = await fetchUSMarketData();
+      if (usData) liveUSData = usData;
+    } catch(e) { console.log('[QN] 初始化錯誤:', e.message); }
 
-  // 3. 計算情緒（需要 liveData 裡的 VIX）
-  liveSent = await fetchSentimentData();
-  if (instData) liveInst = instData;
-
-  // 4. 用真實資料更新畫面
-  updateTicker();
-  updateIndices();
-  updateMarketSummary();
-  renderSentiment(sentMkt);   // 重新渲染含真實 VIX 的情緒頁
-  renderChips(curChipsTab);   // 重新渲染含真實籌碼的籌碼頁
-
-  if (newsItems && newsItems.length) {
-    // 先顯示新聞（不等 AI 解讀）
-    renderNewsFeed(newsItems);
-    // 非同步生成 AI 解讀，完成後更新畫面
-    generateNewsAI(newsItems).then(aiTexts => {
-      if (aiTexts && aiTexts.length) {
-        const enriched = newsItems.map((n, i) => ({
-          ...n, ai: aiTexts[i] || n.ai || ''
-        }));
-        renderNewsFeed(enriched);
+    // 新聞（獨立 try，失敗不影響其他）
+    try {
+      const newsItems = await fetchNews();
+      if (newsItems && newsItems.length >= 2) {
+        renderNewsFeed(newsItems);
+        console.log('[QN] 新聞', newsItems.length, '筆更新成功');
+        generateNewsAI(newsItems).then(aiTexts => {
+          if (aiTexts && aiTexts.length)
+            renderNewsFeed(newsItems.map((n,i) => ({...n, ai: aiTexts[i]||n.ai||''})));
+        }).catch(()=>{});
       }
-    });
-  } else {
-    renderNewsFeed(FALLBACK_NEWS);
-  }
+    } catch(e) { console.log('[QN] 新聞錯誤:', e.message); }
+  }, 500);
 
-  // 4. 每 90 秒自動刷新報價
+  // ③ 定時刷新
   setInterval(async () => {
-    await fetchAllPrices();
-    liveSent = await fetchSentimentData();
-    updateTicker();
-    updateIndices();
-    updateMarketSummary();
-    renderSentiment(sentMkt);
-    renderChips(curChipsTab);
-    document.getElementById('today-date').textContent =
-      nowDateStr() + '　' + nowTime() + ' 更新';
+    try {
+      await fetchAllPrices();
+      liveSent = await fetchSentimentData();
+      updateTicker(); updateIndices(); updateMarketSummary();
+      renderSentiment(sentMkt); renderChips(curChipsTab);
+    } catch(e) {}
+    document.getElementById('today-date').textContent = nowDateStr() + '　' + nowTime() + ' 更新';
   }, 90000);
 
-  // 5. 每 10 分鐘刷新新聞
   setInterval(async () => {
-    const items = await fetchNews();
-    if (items && items.length) {
-      renderNewsFeed(items);
-      generateNewsAI(items).then(aiTexts => {
-        if (aiTexts && aiTexts.length) {
-          renderNewsFeed(items.map((n,i) => ({...n, ai: aiTexts[i]||n.ai||''})));
-        }
-      });
-    }
+    try {
+      const items = await fetchNews();
+      if (items && items.length >= 2) {
+        renderNewsFeed(items);
+        generateNewsAI(items).then(aiTexts => {
+          if (aiTexts && aiTexts.length)
+            renderNewsFeed(items.map((n,i) => ({...n, ai: aiTexts[i]||n.ai||''})));
+        }).catch(()=>{});
+      }
+    } catch(e) {}
   }, 600000);
 
-  // 美股資料每 30 分鐘更新一次
   setInterval(async () => {
-    const usData = await fetchUSMarketData();
-    if (usData) { liveUSData = usData; renderSentiment(sentMkt); }
+    try {
+      const us = await fetchUSMarketData();
+      if (us) { liveUSData = us; }
+    } catch(e) {}
   }, 1800000);
 });
 
