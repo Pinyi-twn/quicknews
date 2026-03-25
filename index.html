@@ -377,17 +377,109 @@ body{color:var(--txt);max-width:430px;margin:0 auto}
 </div><!-- /app -->
 
 <script>
-// ── DATA ──────────────────────────────────────────────────────────
-const INDICES=[
-  {n:'加權',v:'21,840',c:'+1.24%',d:'up'},{n:'費半',v:'4,820',c:'-0.81%',d:'dn'},
-  {n:'道瓊',v:'39,512',c:'+0.31%',d:'up'},{n:'那斯達克',v:'16,340',c:'+0.92%',d:'up'},
-  {n:'VIX',v:'14.2',c:'-3.1%',d:'up'},{n:'USD/TWD',v:'32.12',c:'-0.28%',d:'up'},
-];
-const NEWS=[
-  {tag:'半導體',tc:'b-semi',title:'輝達法說超預期，CoWoS訂單擴至2026年底',body:'Q1營收265億美元，超市場預期14%。黃仁勳表示AI基礎建設需求「遠超想像」。台積電CoWoS產能已全數排至2026年底。',ai:'直接利多台積電（2330）、日月光（3711）、矽品（2325）。台積電短線目標上修至1,050元。',t:'07:31'},
-  {tag:'總經',tc:'b-macro',title:'Fed官員暗示6月降息，美元走弱',body:'Fed理事沃勒表示若通膨持續降溫，6月降息「合理」。美元指數跌至102.3，台幣升0.3%至32.1元。',ai:'降息預期有利外資買盤。台幣升值對出口EPS稀釋約1–3%，整體正面。',t:'07:28'},
-  {tag:'財報',tc:'b-report',title:'聯發科法說今日15:00，市場預期EPS 45元',body:'天璣9400出貨優於預期，旗艦手機旺季，法人偏樂觀。',ai:'若EPS達47元以上為驚喜，可能突破1,300元關卡。建議法說前不追高。',t:'07:25'},
-  {tag:'美股',tc:'b-us',title:'Meta追加AI投資$600億，軍備競賽加劇',body:'Meta全年資本支出上修至600–650億美元，微軟、Google同步擴大AI投資。',ai:'AI伺服器需求爆發，利多鴻海、廣達（2382）、英業達（2356）。',t:'07:20'},
+// ── REAL-TIME API CONFIG ──────────────────────────────────────────
+// CORS Proxy（讓瀏覽器能呼叫 Yahoo Finance）
+const PROXY = 'https://api.allorigins.win/get?url=';
+const YF    = 'https://query1.finance.yahoo.com/v8/finance/chart/';
+// RSS → JSON 服務
+const RSS2JSON = 'https://api.rss2json.com/v1/api.json?rss_url=';
+
+// 股票代碼對照表
+const STOCK_MAP = {
+  '2330.TW':{label:'2330',name:'台積電',mkt:'tw'},
+  '2454.TW':{label:'2454',name:'聯發科',mkt:'tw'},
+  '2317.TW':{label:'2317',name:'鴻海',mkt:'tw'},
+  '2382.TW':{label:'2382',name:'廣達',mkt:'tw'},
+  '2303.TW':{label:'2303',name:'聯電',mkt:'tw'},
+  '2881.TW':{label:'2881',name:'富邦金',mkt:'tw'},
+  'NVDA'   :{label:'NVDA',name:'輝達',mkt:'us'},
+  'AAPL'   :{label:'AAPL',name:'蘋果',mkt:'us'},
+  'TSLA'   :{label:'TSLA',name:'特斯拉',mkt:'us'},
+  '^TWII'  :{label:'加權',name:'',mkt:'idx'},
+  '^GSPC'  :{label:'S&P500',name:'',mkt:'idx'},
+  '^IXIC'  :{label:'那斯達克',name:'',mkt:'idx'},
+  '^VIX'   :{label:'VIX',name:'',mkt:'idx'},
+  'USDTWD=X':{label:'USD/TWD',name:'',mkt:'idx'},
+};
+
+// 靜態備用資料（API 失敗時使用）
+const FALLBACK_PRICES = {
+  '2330.TW':{p:985,ch:3.15},'2454.TW':{p:1248,ch:1.82},'2317.TW':{p:198,ch:-0.5},
+  '2382.TW':{p:312,ch:2.1},'2303.TW':{p:52.3,ch:-0.76},'2881.TW':{p:98.5,ch:0.51},
+  'NVDA':{p:875,ch:4.1},'AAPL':{p:172.4,ch:0.7},'TSLA':{p:178.5,ch:-1.2},
+  '^TWII':{p:21840,ch:1.24},'^GSPC':{p:5600,ch:0.31},'^IXIC':{p:17800,ch:0.92},
+  '^VIX':{p:14.2,ch:-3.1},'USDTWD=X':{p:32.12,ch:-0.28},
+};
+
+// 動態資料 cache
+let liveData = {};
+
+// ── 抓取單支股票即時報價 ─────────────────────────────────────
+async function fetchPrice(symbol) {
+  try {
+    const url = encodeURIComponent(`${YF}${symbol}?interval=1d&range=2d`);
+    const res = await fetch(`${PROXY}${url}`, {signal: AbortSignal.timeout(6000)});
+    const json = await res.json();
+    const data = JSON.parse(json.contents);
+    const meta = data.chart?.result?.[0]?.meta;
+    if (!meta) return null;
+    const price = meta.regularMarketPrice;
+    const prev  = meta.previousClose || meta.chartPreviousClose;
+    const chgPct = prev ? ((price - prev) / prev * 100) : 0;
+    return { p: price, ch: parseFloat(chgPct.toFixed(2)) };
+  } catch(e) { return null; }
+}
+
+// ── 批次抓取所有報價（平行） ─────────────────────────────────
+async function fetchAllPrices() {
+  const symbols = Object.keys(STOCK_MAP);
+  const results = await Promise.all(symbols.map(s => fetchPrice(s)));
+  symbols.forEach((s, i) => {
+    liveData[s] = results[i] || FALLBACK_PRICES[s] || {p:0,ch:0};
+  });
+}
+
+// ── 格式化價格顯示 ────────────────────────────────────────────
+function fmtPrice(p, sym) {
+  const isUS = STOCK_MAP[sym]?.mkt === 'us';
+  if (p >= 1000) return (isUS ? '$' : '') + p.toLocaleString('en-US',{maximumFractionDigits:1});
+  if (p >= 10)   return (isUS ? '$' : '') + p.toFixed(1);
+  return (isUS ? '$' : '') + p.toFixed(2);
+}
+
+// ── 抓取財經新聞 RSS ─────────────────────────────────────────
+async function fetchNews() {
+  // 台灣財經 Google News RSS
+  const rssUrl = encodeURIComponent(
+    'https://news.google.com/rss/search?q=台積電+OR+台股+OR+聯發科+OR+美股+OR+Fed&hl=zh-TW&gl=TW&ceid=TW:zh-Hant'
+  );
+  try {
+    const res = await fetch(`${RSS2JSON}${rssUrl}`, {signal: AbortSignal.timeout(8000)});
+    const data = await res.json();
+    if (data.status !== 'ok' || !data.items?.length) return null;
+    return data.items.slice(0, 6).map(item => {
+      const pubDate = new Date(item.pubDate);
+      const timeStr = `${String(pubDate.getHours()).padStart(2,'0')}:${String(pubDate.getMinutes()).padStart(2,'0')}`;
+      // 自動歸類 tag
+      const title = item.title || '';
+      let tag = '財經', tc = 'b-macro';
+      if (/台積電|半導體|晶片|CoWoS|輝達|NVIDIA|AI/i.test(title)) { tag='半導體'; tc='b-semi'; }
+      else if (/Fed|聯準會|利率|通膨|降息|升息|美元/i.test(title)) { tag='總經'; tc='b-macro'; }
+      else if (/法說|財報|EPS|獲利|營收/i.test(title)) { tag='財報'; tc='b-report'; }
+      else if (/美股|S&P|那斯達克|NVDA|AAPL|TSLA/i.test(title)) { tag='美股'; tc='b-us'; }
+      // 清理來源標記 (e.g. " - 工商時報")
+      const cleanTitle = title.replace(/ - [^-]+$/, '').trim();
+      const body = item.description
+        ? item.description.replace(/<[^>]+>/g,'').slice(0,120).trim() + '…'
+        : '點擊查看完整報導。';
+      return { tag, tc, title: cleanTitle, body, url: item.link, t: timeStr };
+    });
+  } catch(e) { return null; }
+}
+
+// ── 靜態備用新聞（API 失敗時） ────────────────────────────────
+const FALLBACK_NEWS = [
+  {tag:'提示',tc:'b-macro',title:'正在載入最新財經新聞…',body:'請確認網路連線正常。本 App 使用 Google News RSS 抓取即時財經資訊。',ai:'網路連線後將自動顯示最新新聞。',t:'--:--'},
 ];
 const SENT_TW={
   fg:{val:62,label:'貪婪',ai:'台股整體情緒偏多，外資連買12天是重要正訊號。惟融資偏高（68%）代表散戶槓桿偏重，一旦修正容易觸發多殺多。本益比20.4x高於歷史均值，進場需謹慎選股，建議持股不宜過重。'},
@@ -455,58 +547,146 @@ const QUICK_QS=['台積電現在能買嗎？','VIX飆高怎麼辦？','外資連
 let isDark=true, sentMkt='tw', chipsMktLs='tw', chatHistory=[];
 
 // ── INIT ─────────────────────────────────────────────────────────
-window.addEventListener('DOMContentLoaded',()=>{
-  initDate(); initTicker(); initIndices(); initNews();
-  renderSentiment('tw'); renderChips('inst'); initAI();
-  const t=nowTime();
-  document.getElementById('sent-time').textContent=t+' 更新';
-  document.getElementById('chips-time').textContent=t+' 更新';
-  if(window.matchMedia('(prefers-color-scheme:light)').matches){
-    isDark=false; document.body.dataset.theme='light';
+window.addEventListener('DOMContentLoaded', async () => {
+  // 1. 先用 fallback 資料讓畫面立刻顯示
+  initDate();
+  showLoadingTicker();
+  showLoadingNews();
+  renderSentiment('tw');
+  renderChips('inst');
+  initAI();
+
+  const t = nowTime();
+  document.getElementById('sent-time').textContent  = t + ' 更新';
+  document.getElementById('chips-time').textContent = t + ' 更新';
+
+  if (window.matchMedia('(prefers-color-scheme:light)').matches) {
+    isDark = false; document.body.dataset.theme = 'light';
     document.getElementById('dark-tog').classList.remove('on');
-    document.getElementById('theme-btn').textContent='☀️';
+    document.getElementById('theme-btn').textContent = '☀️';
   }
+
+  // 2. 平行抓取即時報價 + 新聞
+  const [_, newsItems] = await Promise.all([
+    fetchAllPrices(),
+    fetchNews(),
+  ]);
+
+  // 3. 用真實資料更新畫面
+  updateTicker();
+  updateIndices();
+  updateMarketSummary();
+
+  if (newsItems && newsItems.length) {
+    renderNewsFeed(newsItems);
+  } else {
+    renderNewsFeed(FALLBACK_NEWS);
+  }
+
+  // 4. 每 90 秒自動刷新報價
+  setInterval(async () => {
+    await fetchAllPrices();
+    updateTicker();
+    updateIndices();
+    updateMarketSummary();
+    document.getElementById('today-date').textContent =
+      nowDateStr() + '　' + nowTime() + ' 更新';
+  }, 90000);
+
+  // 5. 每 10 分鐘刷新新聞
+  setInterval(async () => {
+    const items = await fetchNews();
+    if (items && items.length) renderNewsFeed(items);
+  }, 600000);
 });
-function nowTime(){const d=new Date();return`${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;}
+
+function nowTime(){ const d=new Date(); return`${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; }
+function nowDateStr(){ const d=new Date(),days=['日','一','二','三','四','五','六']; return`${d.getMonth()+1}/${d.getDate()} 週${days[d.getDay()]}`; }
+
 function initDate(){
-  const d=new Date(),days=['日','一','二','三','四','五','六'];
-  document.getElementById('today-date').textContent=`${d.getMonth()+1}/${d.getDate()} 週${days[d.getDay()]}`;
-  document.getElementById('mkt-summary').innerHTML=
-    `台積電ADR昨夜收漲 <strong style="color:var(--up)">+3.2%</strong>，輝達法說超預期帶動費半。今日大盤預計高開，<strong style="color:var(--gold)">半導體</strong>與<strong style="color:var(--gold)">AI伺服器</strong>為主要主軸，外資連續買超82億元。`;
+  document.getElementById('today-date').textContent = nowDateStr();
+  document.getElementById('mkt-summary').innerHTML =
+    `<span style="color:var(--txt3)">⏳ 正在載入即時市場資訊…</span>`;
 }
 
-// ── TICKER ───────────────────────────────────────────────────────
-function initTicker(){
-  const data=[
-    {c:'2330',n:'台積電',p:'985',up:true,ch:'+3.15%'},
-    {c:'2454',n:'聯發科',p:'1,248',up:true,ch:'+1.82%'},
-    {c:'2317',n:'鴻海',p:'198',up:false,ch:'-0.50%'},
-    {c:'2382',n:'廣達',p:'312',up:true,ch:'+2.10%'},
-    {c:'2303',n:'聯電',p:'52.3',up:false,ch:'-0.76%'},
-    {c:'2881',n:'富邦金',p:'98.5',up:true,ch:'+0.51%'},
-    {c:'NVDA',n:'輝達',p:'$875',up:true,ch:'+4.10%'},
-    {c:'AAPL',n:'蘋果',p:'$172',up:true,ch:'+0.70%'},
-    {c:'TSLA',n:'特斯拉',p:'$178',up:false,ch:'-1.20%'},
-    {c:'加權',n:'',p:'21,840',up:true,ch:'+1.24%'},
-    {c:'那斯達克',n:'',p:'16,340',up:true,ch:'+0.92%'},
-    {c:'VIX',n:'',p:'14.2',up:false,ch:'-3.1%'},
+// 載入中 placeholder
+function showLoadingTicker(){
+  const loading = Array(12).fill(0).map(()=>`<div class="tk-item"><span class="tk-n">──</span><span class="tk-v">───</span><span class="tk-c up">───</span></div>`).join('');
+  document.getElementById('tk').innerHTML = loading + loading;
+}
+
+function showLoadingNews(){
+  document.getElementById('news-feed').innerHTML = `
+    <div class="news-item" style="text-align:center;padding:20px 0">
+      <div style="font-size:13px;color:var(--txt3)">⏳ 正在載入最新財經新聞…</div>
+      <div style="font-size:11px;color:var(--txt3);margin-top:6px">透過 Google News RSS 抓取即時資訊</div>
+    </div>`;
+}
+
+// ── 更新跑馬燈（真實資料） ────────────────────────────────────
+function updateTicker(){
+  const tickerStocks = ['2330.TW','2454.TW','2317.TW','2382.TW','2303.TW','2881.TW','NVDA','AAPL','TSLA','^TWII','^IXIC','^VIX'];
+  const html = tickerStocks.map(sym => {
+    const info = STOCK_MAP[sym] || {};
+    const d    = liveData[sym]  || FALLBACK_PRICES[sym] || {p:0,ch:0};
+    const up   = d.ch >= 0;
+    const chStr = (up ? '+' : '') + d.ch.toFixed(2) + '%';
+    const label = info.label + (info.name ? ' ' + info.name : '');
+    return `<div class="tk-item"><span class="tk-n">${label}</span><span class="tk-v">${fmtPrice(d.p,sym)}</span><span class="tk-c ${up?'up':'dn'}">${chStr}</span></div>`;
+  }).join('');
+  document.getElementById('tk').innerHTML = html + html;
+}
+
+// ── 更新大盤指數列（真實資料） ────────────────────────────────
+function updateIndices(){
+  const idxSymbols = [
+    {sym:'^TWII', n:'加權'},
+    {sym:'^IXIC', n:'那斯達克'},
+    {sym:'^GSPC', n:'S&P500'},
+    {sym:'^VIX',  n:'VIX'},
+    {sym:'USDTWD=X', n:'USD/TWD'},
   ];
-  const html=data.map(d=>`<div class="tk-item"><span class="tk-n">${d.c}${d.n?' '+d.n:''}</span><span class="tk-v">${d.p}</span><span class="tk-c ${d.up?'up':'dn'}">${d.ch}</span></div>`).join('');
-  document.getElementById('tk').innerHTML=html+html;
+  document.getElementById('idx-row').innerHTML = idxSymbols.map(({sym,n}) => {
+    const d  = liveData[sym] || FALLBACK_PRICES[sym] || {p:0,ch:0};
+    const up = d.ch >= 0;
+    return `<div class="idx">
+      <div class="idx-n">${n}</div>
+      <div class="idx-v ${up?'up':'dn'}">${fmtPrice(d.p,sym)}</div>
+      <div class="idx-c ${up?'up':'dn'}">${up?'+':''}${d.ch.toFixed(2)}%</div>
+    </div>`;
+  }).join('');
 }
-function initIndices(){
-  document.getElementById('idx-row').innerHTML=INDICES.map(i=>`
-    <div class="idx"><div class="idx-n">${i.n}</div><div class="idx-v ${i.d}">${i.v}</div><div class="idx-c ${i.d}">${i.c}</div></div>`).join('');
+
+// ── 更新市場摘要（真實資料） ──────────────────────────────────
+function updateMarketSummary(){
+  const tsmc = liveData['2330.TW'] || FALLBACK_PRICES['2330.TW'];
+  const twii = liveData['^TWII']   || FALLBACK_PRICES['^TWII'];
+  const vix  = liveData['^VIX']    || FALLBACK_PRICES['^VIX'];
+  const tsmcUp = tsmc.ch >= 0;
+  const twiiUp = twii.ch >= 0;
+  document.getElementById('mkt-summary').innerHTML =
+    `台積電 <strong style="color:var(--${tsmcUp?'up':'dn'})">${tsmcUp?'+':''}${tsmc.ch.toFixed(2)}%（${fmtPrice(tsmc.p,'2330.TW')}）</strong>，
+     加權 <strong style="color:var(--${twiiUp?'up':'dn'})">${twiiUp?'+':''}${twii.ch.toFixed(2)}%</strong>，
+     VIX <strong style="color:var(--gold)">${vix.p.toFixed(1)}</strong>。
+     <span style="color:var(--txt3);font-size:10px">⚡ 即時資料　${nowTime()} 更新</span>`;
 }
-function initNews(){
-  document.getElementById('news-feed').innerHTML=NEWS.map(n=>`
-    <div class="news-item">
+
+// ── 渲染新聞 Feed ─────────────────────────────────────────────
+function renderNewsFeed(items){
+  document.getElementById('news-feed').innerHTML = items.map(n => `
+    <div class="news-item" ${n.url?`onclick="window.open('${n.url}','_blank')" style="cursor:pointer"`:''}>
       <div class="news-top"><span class="badge ${n.tc}">${n.tag}</span><span class="news-time">${n.t}</span></div>
       <div class="news-title">${n.title}</div>
       <div class="news-body">${n.body}</div>
-      <div class="ai-box"><div class="ai-hd">🤖 AI 解讀</div><div class="ai-txt">${n.ai}</div></div>
+      ${n.ai ? `<div class="ai-box"><div class="ai-hd">🤖 AI 解讀</div><div class="ai-txt">${n.ai}</div></div>` : ''}
+      ${n.url ? `<div style="font-size:9.5px;color:var(--blue);margin-top:4px;text-align:right">閱讀完整報導 →</div>` : ''}
     </div>`).join('');
 }
+
+// ── TICKER / INDICES（舊函式保留為空殼）──────────────────────
+function initTicker(){}
+function initIndices(){}
+function initNews(){}
 
 // ── SENTIMENT ────────────────────────────────────────────────────
 function sentTab(el,mkt){
