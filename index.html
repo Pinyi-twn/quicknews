@@ -502,24 +502,16 @@ async function generateNewsAI(newsItems) {
     const headlines = newsItems.slice(0,5).map((n,i) =>
       `${i+1}. [${n.tag}] ${n.title}：${n.body}`
     ).join('\n');
-
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
+    const res = await fetch(`${VERCEL_API}/api/ai`, {
       method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 800,
-        system: '你是速懶報 Quicknews 的 AI 財經分析師。請用繁體中文，對以下每則新聞提供簡短的投資解讀（30字以內），格式為 JSON 陣列，每個元素只有 "ai" 欄位。只回覆 JSON，不要任何其他文字。範例：[{"ai":"利多台積電短線，目標1050元"},{"ai":"降息有利外資回流，正面訊號"}]',
-        messages: [{role:'user', content: `請對以下 ${newsItems.slice(0,5).length} 則新聞各提供一句 AI 解讀：\n${headlines}`}]
-      })
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ headlines, count: Math.min(5, newsItems.length) })
     });
+    if (!res.ok) throw new Error(res.status);
     const data = await res.json();
-    const text = data.content?.[0]?.text || '[]';
-    const clean = text.replace(/```json|```/g,'').trim();
-    const parsed = JSON.parse(clean);
-    return parsed.map(item => item.ai || '');
+    return data.aiTexts || [];
   } catch(e) {
-    console.log('AI解讀失敗:', e);
+    console.log('[QN] AI解讀失敗:', e.message);
     return [];
   }
 }
