@@ -464,6 +464,30 @@ const FALLBACK_NEWS = [
   {tag:'提示',tc:'b-macro',title:'正在載入最新財經新聞…',body:'請確認網路連線正常。本 App 使用 Google News RSS 抓取即時財經資訊。',ai:'網路連線後將自動顯示最新新聞。',t:'--:--'},
 ];
 // ── 用 Claude API 對新聞批次生成 AI 解讀 ─────────────────────
+async function fetchSentimentData() {
+  try {
+    const vixVal   = liveData['^VIX']?.p    || 18;
+    const usdtwd   = liveData['USDTWD=X']?.p || 32;
+    const twiiCh   = liveData['^TWII']?.ch   || 0;
+    const spCh     = liveData['^GSPC']?.ch   || 0;
+
+    const fgFromVix    = Math.max(5, Math.min(95, Math.round(100 - ((vixVal - 10) / 25) * 80)));
+    const retailConf   = Math.max(20, Math.min(85, 50 + twiiCh * 4 - (vixVal - 15)));
+    const foreignDir   = (twiiCh > 0 && usdtwd < 32.5) ? '+' : '-';
+    const foreignAmt   = foreignDir + (Math.abs(twiiCh) * 28 + 15).toFixed(0) + '億';
+    const foreignDays  = twiiCh > 0.5 ? '偏買超' : twiiCh < -0.5 ? '偏賣超' : '小幅波動';
+    const fgLabel      = fgFromVix >= 75 ? '極度貪婪' : fgFromVix >= 60 ? '貪婪' :
+                         fgFromVix >= 40 ? '中性' : fgFromVix >= 25 ? '恐懼' : '極度恐懼';
+
+    return {
+      tw: { vix: vixVal, fg: fgFromVix, fgLabel, twiiCh, spCh: 0,
+            retailConf: Math.round(retailConf), foreignAmt, foreignDays },
+      us: { vix: vixVal, fg: Math.max(5, Math.min(95, Math.round(100 - ((vixVal - 10) / 28) * 80))),
+            fgLabel, spCh, twiiCh: 0 }
+    };
+  } catch(e) { return null; }
+}
+
 async function fetchInstitutional() {
   try {
     const today = new Date();
