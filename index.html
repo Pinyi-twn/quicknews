@@ -1229,16 +1229,15 @@ async function sendMsg(){
   addMsg('user',text);chatHistory.push({role:'user',content:text});
   addLoading();
   try{
-    const r=await fetch('https://api.anthropic.com/v1/messages',{
+    const r=await fetch(`${VERCEL_API}/api/ai`,{
       method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({
-        model:'claude-sonnet-4-20250514',max_tokens:800,
-        system:'你是「速懶報 Quicknews」AI 助理，吉祥物是樹懶拿閃電🦥⚡。專精台股與美股，特別擅長市場情緒分析、三大法人籌碼解讀、融資融券分析。用繁體中文回答，語氣親切專業。重要數字用**粗體**。最後提醒：本資訊僅供參考，不構成投資建議。',
+        mode:'chat',
         messages:chatHistory
       })
     });
     const d=await r.json();
-    const reply=d.content?.[0]?.text||'抱歉，請稍後再試。';
+    const reply=d.reply||'抱歉，請稍後再試。';
     chatHistory.push({role:'assistant',content:reply});
     removeLoading();addMsg('ai',reply);
   }catch(e){
