@@ -210,6 +210,20 @@ body{color:var(--txt);max-width:430px;margin:0 auto}
 .color-opt{flex:1;padding:4px 0;text-align:center;border-radius:18px;font-size:10px;font-weight:700;cursor:pointer;transition:all .2s;color:var(--txt3)}
 .color-opt.on{background:#4db8ff;color:#fff}
 
+/* ── SPLASH ── */
+#splash{position:fixed;top:0;left:0;right:0;bottom:0;z-index:9999;background:linear-gradient(160deg,#07091a 0%,#0f1228 60%,#07091a 100%);display:flex;align-items:center;justify-content:center;flex-direction:column;transition:opacity .6s ease}
+#splash.hide{opacity:0;pointer-events:none}
+.sp-sloth{font-size:56px;line-height:1;margin-bottom:18px;animation:spBounce 1.6s ease-in-out infinite}
+@keyframes spBounce{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-8px) scale(1.06)}}
+.sp-brand{text-align:center;margin-bottom:32px}
+.sp-en{font-family:'Barlow Condensed',sans-serif;font-size:36px;font-weight:700;color:#f0c040;letter-spacing:2px;line-height:1}
+.sp-zh{font-size:11px;color:rgba(176,184,216,.6);letter-spacing:.18em;margin-top:5px;font-weight:500}
+.sp-bar-wrap{width:140px;height:3px;background:rgba(255,255,255,.08);border-radius:2px;overflow:hidden;margin-bottom:16px}
+.sp-bar{height:3px;width:0%;background:linear-gradient(90deg,#c08000,#f0c040,#ffd97a);border-radius:2px;animation:spLoad 2.8s cubic-bezier(.4,0,.2,1) forwards}
+@keyframes spLoad{0%{width:0%}60%{width:75%}85%{width:88%}100%{width:100%}}
+.sp-hint{font-size:11px;color:rgba(176,184,216,.4);letter-spacing:.06em}
+.sp-tagline{position:absolute;bottom:calc(32px + env(safe-area-inset-bottom,0px));font-size:10px;color:rgba(176,184,216,.25);letter-spacing:.08em}
+
 /* ── ANIM ── */
 @keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
 .f1{animation:fadeUp .28s ease both}
@@ -221,6 +235,19 @@ body{color:var(--txt);max-width:430px;margin:0 auto}
 </style>
 </head>
 <body data-updown="tw">
+
+<!-- ── SPLASH SCREEN ── -->
+<div id="splash">
+  <div class="sp-sloth">🦥</div>
+  <div class="sp-brand">
+    <div class="sp-en">Quicknews</div>
+    <div class="sp-zh">速懶報 · AI 財經早報</div>
+  </div>
+  <div class="sp-bar-wrap"><div class="sp-bar"></div></div>
+  <div class="sp-hint">正在載入最新市場資訊…</div>
+  <div class="sp-tagline">本 App 資訊僅供參考，不構成投資建議</div>
+</div>
+
 <div id="app">
 
 <!-- TOPBAR -->
@@ -685,6 +712,20 @@ const QUICK_QS=['台積電現在能買嗎？','VIX飆高怎麼辦？','外資連
 let isDark=true, sentMkt='tw', chipsMktLs='tw', chatHistory=[];
 let notionAI = {}; // { '台股籌碼': {content, updatedAt}, '美股籌碼': {...}, '市場情緒': {...} }
 
+// ── SPLASH ───────────────────────────────────────────────────────
+let _splashTimer = false, _splashData = false;
+function _trySplashHide(){
+  if(!_splashTimer || !_splashData) return;
+  const el = document.getElementById('splash');
+  if(!el) return;
+  el.classList.add('hide');
+  setTimeout(()=>{ el.style.display='none'; }, 650);
+}
+// 最短 3 秒：無論資料快慢，splash 一定顯示至少 3 秒
+setTimeout(()=>{ _splashTimer=true; _trySplashHide(); }, 3000);
+// 安全保底：最長 8 秒，資料載入超時也一定關閉
+setTimeout(()=>{ _splashData=true; _splashTimer=true; _trySplashHide(); }, 8000);
+
 // ── INIT ─────────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', () => {
   // ① 立刻用靜態資料渲染，確保畫面有內容
@@ -728,11 +769,6 @@ window.addEventListener('DOMContentLoaded', () => {
       await fetchNotionAI();
       renderSentiment(sentMkt);
       renderChips(curChipsTab);
-      // 更新時間顯示
-      const sentTime = notionAI['市場情緒']?.updatedAt || nowTime();
-      const chipsTime = notionAI['台股籌碼']?.updatedAt || nowTime();
-      document.getElementById('sent-time').textContent = sentTime + ' 更新';
-      document.getElementById('chips-time').textContent = chipsTime + ' 更新';
     } catch(e) { console.log('[QN] Notion AI 錯誤:', e.message); }
 
     // 新聞（獨立 try，失敗不影響其他）— AI 解讀已在 Notion 內
@@ -743,6 +779,9 @@ window.addEventListener('DOMContentLoaded', () => {
         console.log('[QN] 新聞', newsItems.length, '筆更新成功');
       }
     } catch(e) { console.log('[QN] 新聞錯誤:', e.message); }
+
+    // 資料全部載入完畢，通知 splash 可以隱藏
+    _splashData = true; _trySplashHide();
   }, 500);
 
   // ③ 定時刷新
@@ -850,7 +889,7 @@ function updateMarketSummary(){
 // ── 渲染新聞 Feed ─────────────────────────────────────────────
 function renderNewsFeed(items){
   const displayItems = items.slice(0, 8);
-  let feedHtml = displayItems.map(n => `
+  document.getElementById('news-feed').innerHTML = displayItems.map(n => `
     <div class="news-item" ${n.url?`onclick="window.open('${n.url}','_blank')" style="cursor:pointer"`:''}>
       <div class="news-top"><span class="badge ${n.tc}">${n.tag}</span><span class="news-time">${n.t}</span></div>
       <div class="news-title">${n.title}</div>
@@ -858,9 +897,6 @@ function renderNewsFeed(items){
       ${n.ai ? `<div class="ai-box"><div class="ai-hd">🤖 AI 解讀</div><div class="ai-txt">${n.ai}</div></div>` : ''}
       ${n.url ? `<div style="font-size:9.5px;color:var(--blue);margin-top:4px;text-align:right">閱讀完整報導 →</div>` : ''}
     </div>`).join('');
-  const newsUpdatedAt = displayItems[0]?.updatedAt;
-  if (newsUpdatedAt) feedHtml += `<div style="font-size:9px;color:var(--txt3);text-align:center;padding:8px 0">最後更新：${newsUpdatedAt}</div>`;
-  document.getElementById('news-feed').innerHTML = feedHtml;
 }
 
 // ── TICKER / INDICES（舊函式保留為空殼）──────────────────────
@@ -894,7 +930,7 @@ function renderSentiment(mkt){
       {l:'Put/Call比率',  v:45, max:100, col:'linear-gradient(90deg,#5b9cf6,#f0c040,#f05060)', zone:['看多','看空'], signal:'0.82，中性偏多'},
       {l:'散戶多空比',    v:55, max:100, col:'linear-gradient(90deg,#f05060,#f0c040,#5b9cf6)', zone:['看空','看多'], signal:'多頭佔55%'},
     ];
-    fgAI = notionAI['市場情緒']?.content
+    fgAI = notionAI[mkt==='tw' ? '台股市場情緒' : '美股市場情緒']?.content
       || (mkt==='tw'
         ? `⚡ 即時資料：VIX ${vixV}（${vixSig}），外資${s.foreignAmt||'--'}（${s.foreignDays||''}）。本益比估值為靜態參考值。`
         : `⚡ 即時資料：VIX ${vixV}（${vixSig}），S&P500 ${(s.spCh||0)>=0?'+':''}${(s.spCh||0).toFixed(2)}%。本益比估值為靜態參考值。`);
@@ -968,8 +1004,6 @@ function renderSentiment(mkt){
     </div>`;
   });
   html+=`</div>`;
-  const sentAITime = notionAI['市場情緒']?.updatedAt;
-  if (sentAITime) html+=`<div style="font-size:9px;color:var(--txt3);text-align:right;margin-top:4px">AI 分析：${sentAITime} 更新</div>`;
   document.getElementById('sent-content').innerHTML=html;
 }
 
@@ -1054,11 +1088,9 @@ function renderInst(){
   const instAIKey = chipsMktLs==='tw' ? '台股籌碼' : '美股籌碼';
   const instAIData = notionAI[instAIKey];
   const instAITxt = instAIData?.content || (chipsMktLs==='tw' ? '三大法人籌碼資料載入中…' : '美股機構資金流向載入中…');
-  const instAITime = instAIData?.updatedAt ? `<div style="font-size:9px;color:var(--txt3);margin-top:4px;text-align:right">${instAIData.updatedAt} 更新</div>` : '';
   html+=`<div class="card" style="background:var(--goldbg);border-color:rgba(240,192,64,.2)">
     <div class="ai-hd">🤖 AI 籌碼解讀</div>
     <div class="ai-txt" style="font-size:11.5px">${instAITxt}</div>
-    ${instAITime}
   </div>`;
   document.getElementById('chips-content').innerHTML=html;
 }
@@ -1195,13 +1227,11 @@ function renderLS(){
   const lsAITxt = lsAIData?.content || (isTW
     ? `台股多空比 ${d.long}:${d.short}，${d.long>55?'多方偏強':'整體偏空或震盪'}。資料為即時推算，僅供參考。`
     : `美股多空比 ${d.long}:${d.short}，${d.long>55?'多方偏強':'謹慎偏空'}。資料為即時推算，僅供參考。`);
-  const lsAITime = lsAIData?.updatedAt ? `<div style="font-size:9px;color:var(--txt3);margin-top:4px;text-align:right">${lsAIData.updatedAt} 更新</div>` : '';
 
   html += `</div>
     <div class="card" style="background:var(--goldbg);border-color:rgba(240,192,64,.2)">
       <div class="ai-hd">🤖 AI 多空解讀</div>
       <div class="ai-txt" style="font-size:11.5px">${lsAITxt}</div>
-      ${lsAITime}
     </div>`;
 
   document.getElementById('chips-content').innerHTML = html;
