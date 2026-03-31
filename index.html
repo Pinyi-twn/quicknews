@@ -346,20 +346,13 @@ body{color:var(--txt);max-width:430px;margin:0 auto}
       <div><div class="s-lbl">早報推播通知</div><div class="s-sub">每日 07:30 推送</div></div>
       <div class="toggle on" onclick="this.classList.toggle('on')"><div class="toggle-k"></div></div>
     </div>
-    <div class="setting-row">
-      <div><div class="s-lbl">美股資訊</div><div class="s-sub">納入美股市場資訊</div></div>
-      <div class="toggle on" onclick="this.classList.toggle('on')"><div class="toggle-k"></div></div>
-    </div>
     <!-- 漲跌顏色切換 -->
     <div class="setting-row" style="border-bottom:none">
       <div>
         <div class="s-lbl">漲跌顏色慣例</div>
-        <div class="s-sub" id="updown-desc">台股：紅漲（▲）/ 綠跌（▼）</div>
+        <div class="s-sub" id="updown-desc">紅漲（▲）綠跌（▼）</div>
       </div>
-      <div class="color-switch" id="color-switch">
-        <div class="color-opt on" id="opt-tw" onclick="setUpDown('tw')">台股</div>
-        <div class="color-opt" id="opt-us" onclick="setUpDown('us')">美股</div>
-      </div>
+      <div class="toggle on" id="color-tog" onclick="setUpDown(this.classList.contains('on')?'us':'tw')"><div class="toggle-k"></div></div>
     </div>
   </div>
   <!-- Color preview -->
@@ -368,12 +361,12 @@ body{color:var(--txt);max-width:430px;margin:0 auto}
     <div style="display:flex;gap:8px;align-items:center">
       <div style="flex:1;padding:8px;border-radius:10px;background:var(--upbg);text-align:center">
         <div style="font-family:var(--mono);font-size:16px;font-weight:700;color:var(--up)">▲ 漲</div>
-        <div style="font-size:9px;color:var(--up);margin-top:2px" id="up-label">紅色</div>
+        <div style="font-size:9px;color:var(--up);margin-top:2px" id="up-label">紅色 🔴</div>
       </div>
       <div style="font-size:18px;color:var(--txt3)">↔</div>
       <div style="flex:1;padding:8px;border-radius:10px;background:var(--dnbg);text-align:center">
         <div style="font-family:var(--mono);font-size:16px;font-weight:700;color:var(--dn)">▼ 跌</div>
-        <div style="font-size:9px;color:var(--dn);margin-top:2px" id="dn-label">藍色</div>
+        <div style="font-size:9px;color:var(--dn);margin-top:2px" id="dn-label">綠色 🟢</div>
       </div>
     </div>
   </div>
@@ -538,6 +531,21 @@ async function fetchNotionAI() {
     return {};
   }
 }
+
+async function fetchNotionMonitor() {
+  try {
+    const res = await fetch(`${VERCEL_API}/api/monitor`);
+    if (!res.ok) throw new Error(res.status);
+    const data = await res.json();
+    if (data?.data) {
+      notionMonitor = data.data;
+      console.log('[QN] Notion 監控資料載入:', Object.keys(notionMonitor).length, '筆');
+    }
+  } catch(e) {
+    console.log('[QN] Notion 監控讀取失敗:', e.message);
+  }
+}
+
 
 // ── 美股 P/E 與籌碼計算 ──────────────────────────────────────
 // 策略：用已抓到的即時股價 + 靜態季度 EPS 計算 P/E
@@ -712,6 +720,8 @@ const QUICK_QS=['台積電現在能買嗎？','VIX飆高怎麼辦？','外資連
 
 let isDark=true, sentMkt='tw', chipsMktLs='tw', chatHistory=[];
 let notionAI = {}; // { '台股籌碼': {content, updatedAt}, '美股籌碼': {...}, '市場情緒': {...} }
+let notionMonitor = {}; // { '台股加權 P/E': '19.2x', '台積電 2330': '21.3x', ... }
+
 
 // ── SPLASH ───────────────────────────────────────────────────────
 let _splashTimer = false, _splashData = false;
@@ -767,7 +777,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
     // Notion AI 分析（市場情緒、籌碼解讀）
     try {
-      await fetchNotionAI();
+      await Promise.all([fetchNotionAI(), fetchNotionMonitor()]);
       renderSentiment(sentMkt);
       renderChips(curChipsTab);
     } catch(e) { console.log('[QN] Notion AI 錯誤:', e.message); }
@@ -803,7 +813,7 @@ window.addEventListener('DOMContentLoaded', () => {
       if (items && items.length >= 2) renderNewsFeed(items.slice(0, 8));
     } catch(e) {}
     try {
-      await fetchNotionAI();
+      await Promise.all([fetchNotionAI(), fetchNotionMonitor()]);
       renderSentiment(sentMkt); renderChips(curChipsTab);
     } catch(e) {}
   }, 600000);
@@ -957,9 +967,25 @@ function renderSentiment(mkt){
     } else {
       pe = mkt==='tw' ? SENT_TW.pe : SENT_US.pe;
     }
+    // 台股 P/E：用 Notion 監控資料覆蓋靜態值
+    if (mkt === 'tw' && Object.keys(notionMonitor).length) {
+      pe = pe.map(item => {
+        const nv = notionMonitor[item.n];
+        if (!nv) return item;
+        return { ...item, v: /x$/i.test(nv) ? nv : nv + 'x' };
+      });
+    }
   } else {
     const d0 = mkt==='tw' ? SENT_TW : SENT_US;
     fgVal=d0.fg.val; fgLabel=d0.fg.label; fgAI=d0.fg.ai; gauges=d0.gauges; pe=d0.pe;
+    // 台股 P/E：用 Notion 監控資料覆蓋靜態值
+    if (mkt === 'tw' && Object.keys(notionMonitor).length) {
+      pe = pe.map(item => {
+        const nv = notionMonitor[item.n];
+        if (!nv) return item;
+        return { ...item, v: /x$/i.test(nv) ? nv : nv + 'x' };
+      });
+    }
   }
   const fgCol=fgVal>=60?'var(--up)':fgVal>=40?'var(--gold)':'var(--dn)';
   const r=2*Math.PI*32, filled=r*fgVal/100;
@@ -1241,11 +1267,11 @@ function renderLS(){
 // ── UP/DOWN COLOR SWITCH ──────────────────────────────────────────
 function setUpDown(mode){
   document.body.dataset.updown=mode;
-  document.getElementById('opt-tw').classList.toggle('on',mode==='tw');
-  document.getElementById('opt-us').classList.toggle('on',mode==='us');
+  const tog=document.getElementById('color-tog');
+  if(tog) tog.classList.toggle('on',mode==='tw');
   const desc={
-    tw:'台股：紅漲（▲）/ 綠跌（▼）',
-    us:'美股：綠漲（▲）/ 紅跌（▼）'
+    tw:'紅漲（▲）綠跌（▼）',
+    us:'綠漲（▲）紅跌（▼）'
   };
   const upLabel={tw:'紅色 🔴',us:'綠色 🟢'};
   const dnLabel={tw:'綠色 🟢',us:'紅色 🔴'};
