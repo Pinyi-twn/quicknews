@@ -485,34 +485,45 @@ const FALLBACK_NEWS = [
   {tag:'提示',tc:'b-macro',title:'正在載入最新財經新聞…',body:'請確認網路連線正常。本 App 使用 Google News RSS 抓取即時財經資訊。',ai:'網路連線後將自動顯示最新新聞。',t:'--:--'},
 ];
 // ── 用 Claude API 對新聞批次生成 AI 解讀 ─────────────────────
+// 情緒分數：MoodRing 三信號等權重合成（RSI + 距52週高點 + 20日動量）
+// 算法來源：github.com/WenyuChiou/moodring（MIT License）
 async function fetchSentimentData() {
   try {
-    const vixVal   = liveData['^VIX']?.p    || 18;
-    const usdtwd   = liveData['USDTWD=X']?.p || 32;
-    const twiiCh   = liveData['^TWII']?.ch   || 0;
-    const spCh     = liveData['^GSPC']?.ch   || 0;
-
-    const fgFromVix    = Math.max(5, Math.min(95, Math.round(100 - ((vixVal - 10) / 25) * 80)));
-    const retailConf   = Math.max(20, Math.min(85, 50 + twiiCh * 4 - (vixVal - 15)));
-    const foreignDir   = (twiiCh > 0 && usdtwd < 32.5) ? '+' : '-';
-    const foreignAmt   = foreignDir + (Math.abs(twiiCh) * 28 + 15).toFixed(0) + '億';
-    const foreignDays  = twiiCh > 0.5 ? '偏買超' : twiiCh < -0.5 ? '偏賣超' : '小幅波動';
-    const fgLabel      = fgFromVix >= 75 ? '極度貪婪' : fgFromVix >= 60 ? '貪婪' :
-                         fgFromVix >= 40 ? '中性' : fgFromVix >= 25 ? '恐懼' : '極度恐懼';
-
+    const [twCloses, usCloses] = await Promise.all([
+      fetchPriceHistory('^TWII'),
+      fetchPriceHistory('^GSPC'),
+    ]);
+    const vixVal = liveData['^VIX']?.p  || 18;
+    const twiiCh = liveData['^TWII']?.ch || 0;
+    const spCh   = liveData['^GSPC']?.ch || 0;
+    const def    = { score:50, rsi:50, vsHigh:50, momentum:50, label:'中性' };
+    const twMood = (twCloses.length >= 30 ? computeMoodScore(twCloses) : null) || def;
+    const usMood = (usCloses.length >= 30 ? computeMoodScore(usCloses) : null) || def;
     return {
-      tw: { vix: vixVal, fg: fgFromVix, fgLabel, twiiCh, spCh: 0,
-            retailConf: Math.round(retailConf), foreignAmt, foreignDays },
-      us: { vix: vixVal, fg: Math.max(5, Math.min(95, Math.round(100 - ((vixVal - 10) / 28) * 80))),
-            fgLabel, spCh, twiiCh: 0 }
+      tw: { ...twMood, fg: twMood.score, fgLabel: twMood.label, vix: vixVal, twiiCh },
+      us: { ...usMood, fg: usMood.score, fgLabel: usMood.label, vix: vixVal, spCh },
     };
-  } catch(e) { return null; }
+  } catch(e) { console.log('[QN] 情緒計算失敗:', e.message); return null; }
 }
 
+// 三大法人：從 Notion Monitor 讀取（每日收盤後由後端自動同步 TWSE 資料）
+// Notion 監控資料庫需有：外資買賣超、投信買賣超、自營商買賣超、三大法人合計、外資連買天數
 async function fetchInstitutional() {
-  // TWSE 不支援跨域，改由 Vercel 後端代理（待實作）
-  // 目前回傳 null，籌碼頁面使用靜態資料
-  return null;
+  if (!Object.keys(notionMonitor).length) return null;
+  const nv   = k => notionMonitor[k] || null;
+  const isUp = k => { const v = nv(k); return v ? (v.startsWith('+') || (!v.startsWith('-') && parseFloat(v) > 0)) : null; };
+  const foreign = nv('外資買賣超');
+  const trust   = nv('投信買賣超');
+  const dealer  = nv('自營商買賣超');
+  if (!foreign && !trust) return null; // Notion 尚無法人資料
+  return {
+    foreign,    foreignUp:    isUp('外資買賣超'),
+    foreignDays: nv('外資連買天數') || '--',
+    trust,      trustUp:      isUp('投信買賣超'),
+    dealer,     dealerUp:     isUp('自營商買賣超'),
+    total:      nv('三大法人合計') || '--',
+    totalUp:    isUp('三大法人合計'),
+  };
 }
 
 
@@ -560,6 +571,66 @@ const ETF_PE_FALLBACK = { SPY: 23.1, QQQ: 36.4 };
 const SHORT_INT_FALLBACK = { 'NVDA':'2.1%','TSLA':'8.4%','AAPL':'0.8%','SPY':'2.5%' };
 // 執行時自動從 chart meta 填充的 EPS cache
 const liveEPS = {};
+
+// ── fetch 含 timeout ────────────────────────────────────────────
+async function fetchWithFallback(url, timeout = 6000) {
+  const res = await fetch(url, { signal: AbortSignal.timeout(timeout) });
+  if (!res.ok) throw new Error(res.status);
+  return res.json();
+}
+
+// ── 歷史收盤價（1年日線，來源：Yahoo Finance v8 API）──────────
+async function fetchPriceHistory(symbol) {
+  try {
+    const url = `${YF}${encodeURIComponent(symbol)}?interval=1d&range=1y`;
+    const json = await fetchWithFallback(url, 8000);
+    const arr = json?.chart?.result?.[0]?.indicators?.quote?.[0]?.close;
+    return (arr || []).filter(v => v != null);
+  } catch(e) { console.log('[QN] 歷史價格', symbol, '失敗:', e.message); return []; }
+}
+
+// ── MoodRing 三信號情緒分數 ────────────────────────────────────
+// 演算法來源：github.com/WenyuChiou/moodring（MIT License）
+// 信號一：Wilder's RSI(14)，0-100
+function computeRSI(closes, period = 14) {
+  if (closes.length < period + 1) return 50;
+  let avgGain = 0, avgLoss = 0;
+  for (let i = 1; i <= period; i++) {
+    const d = closes[i] - closes[i - 1];
+    if (d > 0) avgGain += d; else avgLoss -= d;
+  }
+  avgGain /= period; avgLoss /= period;
+  for (let i = period + 1; i < closes.length; i++) {
+    const d = closes[i] - closes[i - 1];
+    avgGain = (avgGain * (period - 1) + Math.max(d, 0)) / period;
+    avgLoss = (avgLoss * (period - 1) + Math.max(-d, 0)) / period;
+  }
+  return avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss);
+}
+// 信號二：距 52 週高點比例，正規化 0-100（floor=80%, range=20%）
+function computeVsHigh(closes) {
+  const all = closes.slice(-252);
+  const max52 = Math.max(...all);
+  const vsHigh = (closes[closes.length - 1] / max52) * 100;
+  return Math.max(0, Math.min(100, (vsHigh - 80) * 5));
+}
+// 信號三：20 日動量，正規化 0-100（range=±10%）
+function computeMomentum(closes, period = 20) {
+  if (closes.length < period + 1) return 50;
+  const mom = ((closes[closes.length - 1] / closes[closes.length - 1 - period]) - 1) * 100;
+  return Math.max(0, Math.min(100, (mom + 10) * 5));
+}
+// 三信號等權重合成 → 情緒分數 0-100
+function computeMoodScore(closes) {
+  if (closes.length < 30) return null;
+  const rsi      = computeRSI(closes);
+  const vsHigh   = computeVsHigh(closes);
+  const momentum = computeMomentum(closes);
+  const score    = Math.round((rsi + vsHigh + momentum) / 3);
+  const label    = score >= 75 ? '極度貪婪' : score >= 60 ? '貪婪' :
+                   score >= 40 ? '中性' : score >= 25 ? '恐懼' : '極度恐懼';
+  return { score, rsi: Math.round(rsi), vsHigh: Math.round(vsHigh), momentum: Math.round(momentum), label };
+}
 
 // ── 從 v8/chart meta 自動抓 EPS、Short Interest、ETF P/E ────
 async function fetchChartMeta(symbol) {
@@ -611,96 +682,90 @@ async function fetchUSMarketData() {
   };
 }
 
-// ── 美股機構資金流向（從已抓到的股價漲跌推算，不需要額外 API）──
-// 美股沒有台股「三大法人」概念，改顯示：
-//   機構法人（Institutional）、避險基金（Hedge Fund）、散戶（Retail）
-// 用 SPY/QQQ/個股的漲跌幅和大盤方向推算資金流向方向
+// 美股機構資金流向：從 Notion Monitor 讀取，無資料顯示待同步
+// 美股無台股三大法人制度，改從 Notion Monitor 同步 ETF Flow 資料
+// Notion 監控資料庫建議欄位：美股機構流向、美股避險基金方向、美股散戶方向
 function computeUSInstitutional() {
-  const spyCh   = liveData['^GSPC']?.ch  || 0;
-  const qqq     = liveData['^IXIC']?.ch  || 0;
-  const vix     = liveData['^VIX']?.p    || 18;
-  const nvdaCh  = liveData['NVDA']?.ch   || 0;
-
-  // VIX 上升 = 法人避險/拋售；下降 = 法人買進
-  const vixDir  = vix < 16 ? 1 : vix > 25 ? -1 : (spyCh > 0 ? 0.5 : -0.5);
-  const mktBull = spyCh > 0;
-
-  // 機構法人：跟大盤同向，資金量用大盤漲跌幅估算
-  const instAmt = (spyCh * 38 + 12).toFixed(0); // 億美元估算
-  const instUp  = spyCh > 0;
-
-  // 避險基金：通常反向操作或中性，VIX 高時偏空
-  const hedgeAmt = (Math.abs(qqq) * 15 + 5).toFixed(0);
-  const hedgeUp  = vix < 20 && qqq > 0;
-
-  // 散戶：通常追漲，比機構稍慢
-  const retailAmt = (Math.abs(nvdaCh) * 8 + 3).toFixed(0);
-  const retailUp  = nvdaCh > 0;
-
-  // 合計
-  const totalUp = instUp; // 以機構方向為準
-  const totalAmt = (parseFloat(instAmt) * 1.4).toFixed(0);
-
+  const nv   = k => notionMonitor[k] || null;
+  const isUp = k => { const v = nv(k); return v ? (v.startsWith('+') || (!v.startsWith('-') && parseFloat(v) > 0)) : null; };
+  const spCh = liveData['^GSPC']?.ch || 0;
+  const mktUp = spCh > 0;
+  // 優先用 Notion Monitor，否則用大盤方向 + 明確標注為估算
+  const instAmt   = nv('美股機構買賣超')  || ((mktUp?'+':'-') + Math.abs(spCh * 30 + 10).toFixed(0) + '億USD');
+  const instUp    = nv('美股機構買賣超')  ? isUp('美股機構買賣超') : mktUp;
+  const instSrc   = nv('美股機構買賣超')  ? 'Notion Monitor' : '⚠️ 大盤方向估算';
+  const hedgeAmt  = nv('美股避險基金方向')|| '--';
+  const hedgeUp   = isUp('美股避險基金方向');
+  const retailAmt = nv('美股散戶方向')    || '--';
+  const retailUp  = isUp('美股散戶方向');
+  const totalUp   = nv('美股機構買賣超')  ? instUp : mktUp;
   return {
-    inst:    { ico:'🏦', name:'機構法人', sub:'ETF/共同基金 資金流', amt:(instUp?'+':'-')+instAmt+'億美元', up:instUp,   days:instUp?'淨流入':'淨流出' },
-    hedge:   { ico:'📈', name:'避險基金', sub:'Hedge Fund 方向',    amt:(hedgeUp?'+':'-')+hedgeAmt+'億美元',up:hedgeUp,  days:hedgeUp?'偏多操作':'偏空操作' },
-    retail:  { ico:'👤', name:'散戶投資人',sub:'Retail Flow 方向',  amt:(retailUp?'+':'-')+retailAmt+'億美元',up:retailUp,days:retailUp?'追漲買進':'停損賣出' },
-    total:   { ico:'📊', name:'整體資金動向',sub:'⚡ 即時股價推算',  amt:(totalUp?'+':'-')+totalAmt+'億美元', up:totalUp,  days:totalUp?'整體偏多':'整體偏空' },
+    inst:   { ico:'🏦', name:'機構法人', sub:`ETF/共同基金 資金流・${instSrc}`,  amt:instAmt,   up:instUp,   days:instUp?'淨流入':'淨流出' },
+    hedge:  { ico:'📈', name:'避險基金', sub:'Hedge Fund・Notion Monitor',        amt:hedgeAmt,  up:hedgeUp,  days:hedgeUp?'偏多操作':hedgeUp===false?'偏空操作':'資料待同步' },
+    retail: { ico:'👤', name:'散戶投資人',sub:'Retail Flow・Notion Monitor',       amt:retailAmt, up:retailUp, days:retailUp?'追漲買進':retailUp===false?'停損賣出':'資料待同步' },
+    total:  { ico:'📊', name:'整體資金動向',sub:'📋 Notion Monitor 每日更新',      amt:nv('美股機構買賣超')||instAmt, up:totalUp, days:totalUp?'整體偏多':'整體偏空' },
   };
 }
 
 let liveUSData = null;
+// 靜態 fallback（僅在即時資料未載入前顯示，gauges 皆為「載入中」）
 const SENT_TW={
-  fg:{val:62,label:'貪婪',ai:'台股整體情緒偏多，外資連買12天是重要正訊號。惟融資偏高（68%）代表散戶槓桿偏重，一旦修正容易觸發多殺多。本益比20.4x高於歷史均值，進場需謹慎選股，建議持股不宜過重。'},
+  fg:{val:50,label:'計算中',ai:'市場情緒資料載入中，請稍候…'},
   gauges:[
-    {l:'VIX 恐慌指數',v:14.2,max:80,col:'linear-gradient(90deg,#5b9cf6,#f0c040,#f05060)',zone:['恐懼','貪婪'],signal:'14.2，市場樂觀'},
-    {l:'融資使用率',v:68,max:100,col:'linear-gradient(90deg,#5b9cf6,#f0c040,#f05060)',zone:['保守','過熱'],signal:'68%，偏高需留意'},
-    {l:'外資連買天數',v:72,max:100,col:'linear-gradient(90deg,#f05060,#f0c040,#5b9cf6)',zone:['賣超','持續買超'],signal:'連買12天'},
-    {l:'散戶信心指數',v:65,max:100,col:'linear-gradient(90deg,#5b9cf6,#f0c040)',zone:['悲觀','樂觀'],signal:'65，偏樂觀'},
+    {l:'RSI-14 動能',  v:50,max:100,col:'linear-gradient(90deg,#5b9cf6,#f0c040,#f05060)',zone:['超賣','超買'],signal:'載入中…'},
+    {l:'52週相對高點', v:50,max:100,col:'linear-gradient(90deg,#5b9cf6,#f0c040,#f05060)',zone:['低檔','高檔'],signal:'載入中…'},
+    {l:'20日動量',     v:50,max:100,col:'linear-gradient(90deg,#f05060,#f0c040,#5b9cf6)',zone:['趨弱','趨強'],signal:'載入中…'},
   ],
   pe:[
-    {n:'台股加權 P/E',v:'20.4x',avg:'均 17x',sig:'hi',sl:'偏貴'},
-    {n:'台積電 2330',v:'22.1x',avg:'均 18x',sig:'hi',sl:'略貴'},
-    {n:'金融類股',v:'12.3x',avg:'均 13x',sig:'ok',sl:'合理'},
-    {n:'電子類股',v:'18.6x',avg:'均 16x',sig:'hi',sl:'略貴'},
-    {n:'傳產類股',v:'11.2x',avg:'均 12x',sig:'lo',sl:'便宜'},
+    {n:'台股加權 P/E',v:'--',avg:'均 17x',sig:'ok',sl:'載入中'},
+    {n:'台積電 2330', v:'--',avg:'均 18x',sig:'ok',sl:'載入中'},
+    {n:'金融類股',    v:'--',avg:'均 13x',sig:'ok',sl:'載入中'},
+    {n:'電子類股',    v:'--',avg:'均 16x',sig:'ok',sl:'載入中'},
+    {n:'傳產類股',    v:'--',avg:'均 12x',sig:'ok',sl:'載入中'},
   ]
 };
 const SENT_US={
-  fg:{val:38,label:'恐懼',ai:'美股貪婪指數38顯示謹慎情緒，非過度恐慌。S&P 500本益比23.4x相較歷史偏貴，但企業獲利維持成長。Fed降息預期提供支撐，短線觀察10年期公債殖利率走向。建議分批布局，不追高。'},
+  fg:{val:50,label:'計算中',ai:'市場情緒資料載入中，請稍候…'},
   gauges:[
-    {l:'VIX 恐慌指數',v:18.5,max:80,col:'linear-gradient(90deg,#5b9cf6,#f0c040,#f05060)',zone:['恐懼','貪婪'],signal:'18.5，略有疑慮'},
-    {l:'S&P 500 P/E',v:58,max:100,col:'linear-gradient(90deg,#5b9cf6,#f0c040,#f05060)',zone:['便宜','貴'],signal:'23.4x，歷史均 17x'},
-    {l:'Put/Call 比率',v:42,max:100,col:'linear-gradient(90deg,#5b9cf6,#f0c040,#f05060)',zone:['看多','看空'],signal:'0.82，中性偏多'},
-    {l:'散戶多空比',v:55,max:100,col:'linear-gradient(90deg,#f05060,#f0c040,#5b9cf6)',zone:['看空','看多'],signal:'多頭佔55%'},
+    {l:'RSI-14 動能',  v:50,max:100,col:'linear-gradient(90deg,#5b9cf6,#f0c040,#f05060)',zone:['超賣','超買'],signal:'載入中…'},
+    {l:'52週相對高點', v:50,max:100,col:'linear-gradient(90deg,#5b9cf6,#f0c040,#f05060)',zone:['低檔','高檔'],signal:'載入中…'},
+    {l:'20日動量',     v:50,max:100,col:'linear-gradient(90deg,#f05060,#f0c040,#5b9cf6)',zone:['趨弱','趨強'],signal:'載入中…'},
+    {l:'VIX 恐慌指數', v:50,max:80, col:'linear-gradient(90deg,#5b9cf6,#f0c040,#f05060)',zone:['低波','高波'],signal:'載入中…'},
   ],
   pe:[
-    {n:'S&P 500 P/E',v:'23.4x',avg:'均 17x',sig:'hi',sl:'偏貴'},
-    {n:'那斯達克 P/E',v:'38.2x',avg:'均 28x',sig:'hi',sl:'偏貴'},
-    {n:'輝達 NVDA',v:'52.1x',avg:'均 40x',sig:'hi',sl:'AI溢價'},
-    {n:'巴菲特指標',v:'196%',avg:'合理 100%',sig:'hi',sl:'過熱'},
-    {n:'金融股 P/B',v:'1.4x',avg:'均 1.5x',sig:'ok',sl:'合理'},
+    {n:'S&P500 P/E (SPY)',   v:'--',avg:'均 17x',sig:'ok',sl:'載入中'},
+    {n:'那斯達克 P/E (QQQ)', v:'--',avg:'均 28x',sig:'ok',sl:'載入中'},
+    {n:'NVDA 輝達 P/E',      v:'--',avg:'均 40x',sig:'ok',sl:'載入中'},
+    {n:'AAPL 蘋果 P/E',      v:'--',avg:'均 28x',sig:'ok',sl:'載入中'},
+    {n:'TSLA 特斯拉 P/E',    v:'--',avg:'均 70x',sig:'ok',sl:'載入中'},
   ]
 };
+// 三大法人 fallback（notionMonitor 無資料時顯示）
 const CHIPS_INST=[
-  {ico:'🏦',name:'外資',sub:'FINI',amt:'+82.4億',up:true,days:'連買 12 天',pct:72},
-  {ico:'🏛️',name:'投信',sub:'本土投信',amt:'+12.1億',up:true,days:'連買 5 天',pct:42},
-  {ico:'🏢',name:'自營商',sub:'券商自有資金',amt:'-3.8億',up:false,days:'賣超 3 天',pct:28},
-  {ico:'📊',name:'三大法人合計',sub:'今日合計',amt:'+90.7億',up:true,days:'整體偏多',pct:80},
+  {ico:'🏦',name:'外資',       sub:'FINI・資料來源：Notion Monitor 每日同步',amt:'--',up:null,days:'資料待同步',pct:50},
+  {ico:'🏛️',name:'投信',       sub:'本土投信・Notion Monitor',               amt:'--',up:null,days:'資料待同步',pct:50},
+  {ico:'🏢',name:'自營商',     sub:'券商自有資金・Notion Monitor',            amt:'--',up:null,days:'資料待同步',pct:50},
+  {ico:'📊',name:'三大法人合計',sub:'📋 每日收盤後由 Notion Monitor 更新',    amt:'--',up:null,days:'資料待同步',pct:50},
 ];
-const CHIPS_MARGIN={
-  tw:[
-    {n:'融資餘額',v:'2,842億',chg:'+18億',pct:68,up:true},
-    {n:'融券餘額',v:'142億',chg:'-8億',pct:28,up:false},
-    {n:'融資維持率',v:'148%',chg:'+2%',pct:60,up:true},
-    {n:'資券比',v:'20.0x',chg:'+1.2',pct:55,up:true},
-  ],
-  us:[
-    {n:'NYSE Margin Debt',v:'$7,840億',chg:'+$120億',pct:72,up:true},
-    {n:'Short Interest S&P',v:'2.8%',chg:'-0.1%',pct:35,up:false},
-    {n:'Margin Call Risk',v:'中等',chg:'',pct:48,up:null},
-  ]
-};
+// 融資融券：從 notionMonitor 取得，fallback 顯示 --
+function getMarginData(mkt) {
+  const nv  = k => notionMonitor[k] || '--';
+  const pct = k => { const v = notionMonitor[k]; return v ? Math.min(100, Math.max(0, parseFloat(v))) : 50; };
+  const up  = k => { const v = notionMonitor[k]; return v && v !== '--' ? (v.startsWith('+') || (!v.startsWith('-') && parseFloat(v) > 0)) : null; };
+  if (mkt === 'tw') return [
+    {n:'融資餘額',   v:nv('融資餘額'),   chg:nv('融資餘額變動'),   pct:pct('融資使用率'), up:up('融資餘額變動')},
+    {n:'融券餘額',   v:nv('融券餘額'),   chg:nv('融券餘額變動'),   pct:30,                up:up('融券餘額變動')},
+    {n:'融資使用率', v:nv('融資使用率'), chg:'',                    pct:pct('融資使用率'), up:null},
+    {n:'資券比',     v:nv('資券比'),     chg:'',                    pct:50,                up:null},
+  ];
+  // 美股 margin：Notion 或靜態參考
+  return [
+    {n:'NYSE Margin Debt',  v:nv('美股融資餘額')||'--', chg:'', pct:60, up:null},
+    {n:'Short Interest S&P',v:nv('SPY 短空%')||'--',    chg:'', pct:35, up:null},
+    {n:'Margin Call Risk',  v:'--',                     chg:'', pct:48, up:null},
+  ];
+}
+const CHIPS_MARGIN = { tw: [], us: [] }; // 不再使用靜態值，改由 getMarginData() 動態產生
 const CHIPS_LS={
   tw:{long:62,short:38,stocks:[
     {n:'2330',name:'台積電',lv:82,sv:18,net:'+買超 8.2萬張'},
@@ -931,20 +996,25 @@ function renderSentiment(mkt){
     fgLabel = s.fgLabel || (fgVal>=75?'極度貪婪':fgVal>=60?'貪婪':fgVal>=40?'中性':fgVal>=25?'恐懼':'極度恐懼');
     const vixV = s.vix ? s.vix.toFixed(1) : '--';
     const vixSig = s.vix < 15 ? '偏低，市場樂觀' : s.vix < 25 ? '中性' : '偏高，市場謹慎';
+    // 三信號 gauges（MoodRing 算法，來源：github.com/WenyuChiou/moodring）
+    const rsiV = s.rsi || 50;
+    const rsiSig = rsiV > 70 ? '偏熱，留意拉回' : rsiV < 30 ? '超賣，留意反彈' : '中性';
+    const vshV  = s.vsHigh || 50;
+    const momV  = s.momentum || 50;
     gauges = mkt==='tw' ? [
-      {l:'外資動向',  v:s.twiiCh>0?72:35,  max:100, col:'linear-gradient(90deg,#f05060,#f0c040,#5b9cf6)', zone:['賣超','持續買超'], signal:(s.foreignAmt||'--')+'（'+(s.foreignDays||'--')+'）'},
-      {l:'散戶信心',  v:s.retailConf||55,  max:100, col:'linear-gradient(90deg,#5b9cf6,#f0c040)',          zone:['悲觀','樂觀'],    signal:(s.retailConf||55)+'　'+(s.retailConf>60?'偏樂觀':'偏保守')},
-      {l:'大盤趨勢',  v:Math.max(5,Math.min(95,50+((s.twiiCh||0)*8))), max:100, col:'linear-gradient(90deg,#5b9cf6,#f0c040,#f05060)', zone:['偏空','偏多'], signal:'加權 '+(s.twiiCh>=0?'+':'')+(s.twiiCh||0).toFixed(2)+'%'},
+      {l:'RSI-14 動能',  v:rsiV, max:100, col:'linear-gradient(90deg,#5b9cf6,#f0c040,#f05060)', zone:['超賣','超買'], signal:`${rsiV}　${rsiSig}`},
+      {l:'52週相對高點', v:vshV, max:100, col:'linear-gradient(90deg,#5b9cf6,#f0c040,#f05060)', zone:['低檔','高檔'], signal:`距年高 ${Math.max(0,100-vshV)}% 空間`},
+      {l:'20日動量',     v:momV, max:100, col:'linear-gradient(90deg,#f05060,#f0c040,#5b9cf6)', zone:['趨弱','趨強'], signal:`${momV>55?'正動量，趨勢偏強':momV<45?'負動量，趨勢偏弱':'動量中性'}`},
     ] : [
-      {l:'VIX 恐慌指數',  v:s.vix||18,      max:80,  col:'linear-gradient(90deg,#5b9cf6,#f0c040,#f05060)', zone:['恐懼','貪婪'],   signal: vixV + '　' + vixSig},
-      {l:'S&P500 趨勢',   v:Math.max(5,Math.min(95,50+((s.spCh||0)*8))), max:100, col:'linear-gradient(90deg,#5b9cf6,#f0c040,#f05060)', zone:['偏空','偏多'], signal:'S&P500 '+(s.spCh>=0?'+':'')+(s.spCh||0).toFixed(2)+'%'},
-      {l:'Put/Call比率',  v:45, max:100, col:'linear-gradient(90deg,#5b9cf6,#f0c040,#f05060)', zone:['看多','看空'], signal:'0.82，中性偏多'},
-      ...(() => { const usLongV = parseFloat(notionMonitor['美股多頭%'] ?? notionMonitor['美股多空比']?.split(':')[0]) || 55; return [{l:'散戶多空比', v:usLongV, max:100, col:'linear-gradient(90deg,#f05060,#f0c040,#5b9cf6)', zone:['看空','看多'], signal:`多頭佔${usLongV}%`}]; })(),
+      {l:'RSI-14 動能',  v:rsiV, max:100, col:'linear-gradient(90deg,#5b9cf6,#f0c040,#f05060)', zone:['超賣','超買'], signal:`${rsiV}　${rsiSig}`},
+      {l:'52週相對高點', v:vshV, max:100, col:'linear-gradient(90deg,#5b9cf6,#f0c040,#f05060)', zone:['低檔','高檔'], signal:`距年高 ${Math.max(0,100-vshV)}% 空間`},
+      {l:'20日動量',     v:momV, max:100, col:'linear-gradient(90deg,#f05060,#f0c040,#5b9cf6)', zone:['趨弱','趨強'], signal:`${momV>55?'正動量，趨勢偏強':momV<45?'負動量，趨勢偏弱':'動量中性'}`},
+      {l:'VIX 恐慌指數', v:Math.max(5,Math.min(95,s.vix||18)), max:80, col:'linear-gradient(90deg,#5b9cf6,#f0c040,#f05060)', zone:['低波','高波'], signal:`${vixV}　${vixSig}`},
     ];
     fgAI = notionAI[mkt==='tw' ? '台股市場情緒' : '美股市場情緒']?.content
       || (mkt==='tw'
-        ? `⚡ 即時資料：VIX ${vixV}（${vixSig}），外資${s.foreignAmt||'--'}（${s.foreignDays||''}）。本益比估值為靜態參考值。`
-        : `⚡ 即時資料：VIX ${vixV}（${vixSig}），S&P500 ${(s.spCh||0)>=0?'+':''}${(s.spCh||0).toFixed(2)}%。本益比估值為靜態參考值。`);
+        ? `📐 技術指標推算（MoodRing 算法）：RSI-14=${rsiV}（${rsiSig}），距52週高點=${vshV}，20日動量=${momV}。綜合情緒分數 ${s.score||50}。P/E 來自 Notion Monitor 每日更新。`
+        : `📐 技術指標推算（MoodRing 算法）：RSI-14=${rsiV}（${rsiSig}），距52週高點=${vshV}，20日動量=${momV}。VIX=${vixV}（${vixSig}）。綜合情緒分數 ${s.score||50}。`);
     // 美股 P/E 若有即時資料就更新
     const usTag = (liveUSData && !liveUSData._isFallback) ? '⚡' : '📊';
     if (mkt === 'us' && liveUSData) {
@@ -1124,7 +1194,7 @@ function renderInst(){
   document.getElementById('chips-content').innerHTML=html;
 }
 function renderMargin(){
-  const data=chipsMktLs==='tw'?CHIPS_MARGIN.tw:CHIPS_MARGIN.us;
+  const data=getMarginData(chipsMktLs);
   let html=mkSubTabs(chipsMktLs)+`<div class="card f2"><div class="sec-t" style="margin-bottom:10px">${chipsMktLs==='tw'?'台股':'美股'} 融資融券概況</div>`;
   data.forEach(r=>{
     const col=r.up===true?'var(--up)':r.up===false?'var(--dn)':'var(--gold)';
@@ -1135,22 +1205,30 @@ function renderMargin(){
     </div>`;
   });
   html+=`</div>`;
-  const rp=chipsMktLs==='tw'?68:72;
+  // 融資風險值：從 notionMonitor['融資使用率'] 動態讀取（台股），美股用 SPY 短空%
+  const rpRaw = chipsMktLs==='tw'
+    ? parseFloat(notionMonitor['融資使用率']) || null
+    : parseFloat(notionMonitor['SPY 短空%'])  || null;
+  const rpLabel = rpRaw != null ? Math.round(rpRaw) : '--';
+  const rp = rpRaw ?? 50;
   const rc=rp>70?'var(--up)':rp>50?'var(--gold)':'var(--dn)';
   const rv=2*Math.PI*28, rf=rv*rp/100;
+  const riskDesc = chipsMktLs==='tw'
+    ? (rpRaw!=null ? `台股融資使用率 ${rpLabel}%${rp>=75?'，已達高風險水位，歷史上超過75%後修正機率提高，建議控管槓桿。':rp>=60?'，處中高水位，留意槓桿風險。':'，目前尚在合理範圍。'}` : '融資使用率資料待 Notion Monitor 同步（每日收盤後更新）。')
+    : (rpRaw!=null ? `SPY 短空比例 ${rpRaw}%，${rp>=4?'空頭部位偏重，市場謹慎。':'空頭比例正常，市場相對樂觀。'}` : '美股融資水位資料待 Notion Monitor 同步。');
   html+=`<div class="card f3"><div class="sec-t" style="margin-bottom:10px">融資風險儀表板</div>
     <div style="display:flex;align-items:center;gap:14px;padding:6px 0">
       <svg width="72" height="72" viewBox="0 0 72 72">
         <circle cx="36" cy="36" r="28" fill="none" stroke="var(--bg3)" stroke-width="7"/>
-        <circle cx="36" cy="36" r="28" fill="none" stroke="${rc}" stroke-width="7"
+        <circle cx="36" cy="36" r="28" fill="none" stroke="${rpRaw!=null?rc:'var(--txt3)'}" stroke-width="7"
           stroke-dasharray="${rf.toFixed(1)} ${(rv-rf).toFixed(1)}"
           stroke-dashoffset="${(rv*.25).toFixed(1)}" stroke-linecap="round"/>
-        <text x="36" y="33" text-anchor="middle" font-size="18" font-weight="700" fill="${rc}" font-family="'DM Mono'">${rp}</text>
-        <text x="36" y="46" text-anchor="middle" font-size="8" fill="var(--txt3)">風險值</text>
+        <text x="36" y="33" text-anchor="middle" font-size="18" font-weight="700" fill="${rpRaw!=null?rc:'var(--txt3)'}" font-family="'DM Mono'">${rpLabel}</text>
+        <text x="36" y="46" text-anchor="middle" font-size="8" fill="var(--txt3)">${chipsMktLs==='tw'?'使用率%':'空頭%'}</text>
       </svg>
       <div style="flex:1">
-        <div style="font-size:14px;font-weight:700;color:${rc}">${rp>=70?'⚠️ 高風險':rp>=50?'中等風險':'低風險'}</div>
-        <div style="font-size:11px;color:var(--txt2);margin-top:5px;line-height:1.65">${chipsMktLs==='tw'?'台股融資使用率68%，處中高水位。歷史上超過75%時修正機率提高，建議控管槓桿。':'美股融資水位偏高，強制平倉風險需關注，歷史上高融資後伴隨波動加劇。'}</div>
+        <div style="font-size:14px;font-weight:700;color:${rpRaw!=null?rc:'var(--txt3)'}">${rpRaw!=null?(rp>=70?'⚠️ 高風險':rp>=50?'中等風險':'低風險'):'待資料同步'}</div>
+        <div style="font-size:11px;color:var(--txt2);margin-top:5px;line-height:1.65">${riskDesc}</div>
       </div>
     </div></div>
   <div class="card" style="background:var(--goldbg);border-color:rgba(240,192,64,.2)">
