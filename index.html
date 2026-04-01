@@ -939,7 +939,7 @@ function renderSentiment(mkt){
       {l:'VIX 恐慌指數',  v:s.vix||18,      max:80,  col:'linear-gradient(90deg,#5b9cf6,#f0c040,#f05060)', zone:['恐懼','貪婪'],   signal: vixV + '　' + vixSig},
       {l:'S&P500 趨勢',   v:Math.max(5,Math.min(95,50+((s.spCh||0)*8))), max:100, col:'linear-gradient(90deg,#5b9cf6,#f0c040,#f05060)', zone:['偏空','偏多'], signal:'S&P500 '+(s.spCh>=0?'+':'')+(s.spCh||0).toFixed(2)+'%'},
       {l:'Put/Call比率',  v:45, max:100, col:'linear-gradient(90deg,#5b9cf6,#f0c040,#f05060)', zone:['看多','看空'], signal:'0.82，中性偏多'},
-      {l:'散戶多空比',    v:55, max:100, col:'linear-gradient(90deg,#f05060,#f0c040,#5b9cf6)', zone:['看空','看多'], signal:'多頭佔55%'},
+      ...(() => { const usLongV = parseFloat(notionMonitor['美股多頭%'] ?? notionMonitor['美股多空比']?.split(':')[0]) || 55; return [{l:'散戶多空比', v:usLongV, max:100, col:'linear-gradient(90deg,#f05060,#f0c040,#5b9cf6)', zone:['看空','看多'], signal:`多頭佔${usLongV}%`}]; })(),
     ];
     fgAI = notionAI[mkt==='tw' ? '台股市場情緒' : '美股市場情緒']?.content
       || (mkt==='tw'
@@ -967,23 +967,25 @@ function renderSentiment(mkt){
     } else {
       pe = mkt==='tw' ? SENT_TW.pe : SENT_US.pe;
     }
-    // 台股 P/E：用 Notion 監控資料覆蓋靜態值
-    if (mkt === 'tw' && Object.keys(notionMonitor).length) {
+    // 台股／美股 P/E：用 Notion 監控資料覆蓋靜態值
+    if (Object.keys(notionMonitor).length) {
       pe = pe.map(item => {
         const nv = notionMonitor[item.n];
         if (!nv) return item;
-        return { ...item, v: /x$/i.test(nv) ? nv : nv + 'x' };
+        const vStr = /x$/i.test(nv) || /%$/.test(nv) ? nv : nv + 'x';
+        return { ...item, v: vStr };
       });
     }
   } else {
     const d0 = mkt==='tw' ? SENT_TW : SENT_US;
     fgVal=d0.fg.val; fgLabel=d0.fg.label; fgAI=d0.fg.ai; gauges=d0.gauges; pe=d0.pe;
-    // 台股 P/E：用 Notion 監控資料覆蓋靜態值
-    if (mkt === 'tw' && Object.keys(notionMonitor).length) {
+    // 台股／美股 P/E：用 Notion 監控資料覆蓋靜態值
+    if (Object.keys(notionMonitor).length) {
       pe = pe.map(item => {
         const nv = notionMonitor[item.n];
         if (!nv) return item;
-        return { ...item, v: /x$/i.test(nv) ? nv : nv + 'x' };
+        const vStr = /x$/i.test(nv) || /%$/.test(nv) ? nv : nv + 'x';
+        return { ...item, v: vStr };
       });
     }
   }
@@ -1177,7 +1179,8 @@ function renderLS(){
   // ── 台股：動態多空比 + 靜態個股籌碼含股名 ──
   if (chipsMktLs === 'tw') {
     const twiiCh = liveData['^TWII']?.ch || 0;
-    const longPct = Math.min(85, Math.max(30, Math.round(62 + twiiCh * 2)));
+    const twLongBase = parseFloat(notionMonitor['台股多頭%'] ?? notionMonitor['台股多空比']?.split(':')[0]) || 62;
+    const longPct = Math.min(85, Math.max(30, Math.round(twLongBase + twiiCh * 2)));
     d = {
       long: longPct,
       short: 100 - longPct,
@@ -1186,20 +1189,28 @@ function renderLS(){
   // ── 美股：動態多空比 + 即時空頭資料 ──
   } else {
     const spCh    = liveData['^GSPC']?.ch || 0;
-    const nvdaSv  = liveUSData?.nvdaShort ? parseFloat(liveUSData.nvdaShort) : 2.1;
-    const tslaSv  = liveUSData?.tslaShort ? parseFloat(liveUSData.tslaShort) : 8.4;
-    const spySv   = liveUSData?.spyShort  ? parseFloat(liveUSData.spyShort)  : 2.5;
-    const longPct = Math.min(85, Math.max(30, Math.round(55 + spCh * 3)));
+    const nvdaSv  = liveUSData?.nvdaShort ? parseFloat(liveUSData.nvdaShort) : parseFloat(notionMonitor['NVDA 短空%'] ?? notionMonitor['NVDA 短空比']) || 2.1;
+    const tslaSv  = liveUSData?.tslaShort ? parseFloat(liveUSData.tslaShort) : parseFloat(notionMonitor['TSLA 短空%'] ?? notionMonitor['TSLA 短空比']) || 8.4;
+    const spySv   = liveUSData?.spyShort  ? parseFloat(liveUSData.spyShort)  : parseFloat(notionMonitor['SPY 短空%']  ?? notionMonitor['SPY 短空比'])  || 2.5;
+    const aaplSv  = parseFloat(notionMonitor['AAPL 短空%'] ?? notionMonitor['AAPL 短空比']) || 0.8;
+    const metaSv  = parseFloat(notionMonitor['META 短空%'] ?? notionMonitor['META 短空比']) || 1.2;
+    const usLongBase = parseFloat(notionMonitor['美股多頭%'] ?? notionMonitor['美股多空比']?.split(':')[0]) || 55;
+    const longPct = Math.min(85, Math.max(30, Math.round(usLongBase + spCh * 3)));
     const liveTag = liveUSData ? '⚡' : '';
+    const nvdaShortStr = liveUSData?.nvdaShort || notionMonitor['NVDA 短空%'] || notionMonitor['NVDA 短空比'] || '2.1%';
+    const tslaShortStr = liveUSData?.tslaShort || notionMonitor['TSLA 短空%'] || notionMonitor['TSLA 短空比'] || '8.4%';
+    const spyShortStr  = liveUSData?.spyShort  || notionMonitor['SPY 短空%']  || notionMonitor['SPY 短空比']  || '2.5%';
+    const aaplShortStr = notionMonitor['AAPL 短空%'] || notionMonitor['AAPL 短空比'] || '0.8%';
+    const metaShortStr = notionMonitor['META 短空%'] || notionMonitor['META 短空比'] || '1.2%';
     d = {
       long: longPct,
       short: 100 - longPct,
       stocks: [
-        {n:'NVDA', name:'輝達',   lv:Math.round(100-nvdaSv*3), sv:Math.round(nvdaSv*3), net:`Short ${liveUSData?.nvdaShort||'2.1%'} ${liveTag}`},
-        {n:'TSLA', name:'特斯拉', lv:Math.round(100-tslaSv),   sv:Math.round(tslaSv),   net:`Short ${liveUSData?.tslaShort||'8.4%'} ${liveTag}`},
-        {n:'SPY',  name:'S&P500', lv:Math.round(100-spySv*4),  sv:Math.round(spySv*4),  net:`Short ${liveUSData?.spyShort||'2.5%'} ${liveTag}`},
-        {n:'AAPL', name:'蘋果',   lv:72, sv:28, net:'Short 0.8%'},
-        {n:'META', name:'Meta',   lv:68, sv:32, net:'Short 1.2%'},
+        {n:'NVDA', name:'輝達',   lv:Math.round(100-nvdaSv*3),  sv:Math.round(nvdaSv*3),  net:`Short ${nvdaShortStr} ${liveTag}`},
+        {n:'TSLA', name:'特斯拉', lv:Math.round(100-tslaSv),    sv:Math.round(tslaSv),    net:`Short ${tslaShortStr} ${liveTag}`},
+        {n:'SPY',  name:'S&P500', lv:Math.round(100-spySv*4),   sv:Math.round(spySv*4),   net:`Short ${spyShortStr} ${liveTag}`},
+        {n:'AAPL', name:'蘋果',   lv:Math.round(100-aaplSv*3),  sv:Math.round(aaplSv*3),  net:`Short ${aaplShortStr}`},
+        {n:'META', name:'Meta',   lv:Math.round(100-metaSv*3),  sv:Math.round(metaSv*3),  net:`Short ${metaShortStr}`},
       ]
     };
   }
