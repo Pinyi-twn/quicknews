@@ -1465,11 +1465,20 @@ async function sendMsg(){
   addMsg('user',text);chatHistory.push({role:'user',content:text});
   addLoading();
   try{
+    // 組合即時市場快照供 AI 參考
+    const marketContext = {};
+    const twii = liveData['^TWII']; if (twii) marketContext['台股加權'] = `${twii.p} (${twii.ch>=0?'+':''}${twii.ch}%)`;
+    const sp   = liveData['^GSPC']; if (sp)   marketContext['S&P500']   = `${sp.p} (${sp.ch>=0?'+':''}${sp.ch}%)`;
+    const vix  = liveData['^VIX'];  if (vix)  marketContext['VIX']      = vix.p.toFixed(1);
+    const usd  = liveData['USDTWD=X']; if (usd) marketContext['USD/TWD'] = usd.p.toFixed(2);
+    if (liveSent?.tw?.score != null) marketContext['台股情緒分數'] = liveSent.tw.score + ' (' + liveSent.tw.label + ')';
+    if (liveSent?.us?.score != null) marketContext['美股情緒分數'] = liveSent.us.score + ' (' + liveSent.us.label + ')';
     const r=await fetch(`${VERCEL_API}/api/ai`,{
       method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({
         mode:'chat',
-        messages:chatHistory
+        messages:chatHistory,
+        marketContext: Object.keys(marketContext).length ? marketContext : undefined,
       })
     });
     const d=await r.json();
