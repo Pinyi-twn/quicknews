@@ -503,8 +503,14 @@ async function fetchSentimentData() {
     const twiiCh = liveData['^TWII']?.ch || 0;
     const spCh   = liveData['^GSPC']?.ch || 0;
     const def    = { score:50, rsi:50, vsHigh:50, momentum:50, label:'中性' };
-    const twMood = (twCloses.length >= 30 ? computeMoodScore(twCloses) : null) || def;
-    const usMood = (usCloses.length >= 30 ? computeMoodScore(usCloses) : null) || def;
+    const twMood = (twCloses.length >= 30 ? computeMoodScore(twCloses) : null)
+      || getNotionMoodFallback('tw')
+      || getVIXBasedMood('tw')
+      || def;
+    const usMood = (usCloses.length >= 30 ? computeMoodScore(usCloses) : null)
+      || getNotionMoodFallback('us')
+      || getVIXBasedMood('us')
+      || def;
     return {
       tw: { ...twMood, fg: twMood.score, fgLabel: twMood.label, vix: vixVal, twiiCh },
       us: { ...usMood, fg: usMood.score, fgLabel: usMood.label, vix: vixVal, spCh },
@@ -637,6 +643,26 @@ function computeMoodScore(closes) {
                    score >= 40 ? '中性' : score >= 25 ? '恐懼' : '極度恐懼';
   return { score, rsi: Math.round(rsi), vsHigh: Math.round(vsHigh), momentum: Math.round(momentum), label };
 }
+// Fallback 1: 從 Notion Monitor 讀取 cron.js 每日計算並存入的情緒指標
+function getNotionMoodFallback(mkt) {
+  const p = mkt === 'tw' ? '台股' : '美股';
+  const score = parseFloat(notionMonitor[p + '情緒分數']);
+  if (isNaN(score)) return null;
+  const rsi      = parseFloat(notionMonitor[p + 'RSI14'])    || 50;
+  const vsHigh   = parseFloat(notionMonitor[p + '52週高點']) || 50;
+  const momentum = parseFloat(notionMonitor[p + '20日動量']) || 50;
+  const label = score>=75?'極度貪婪':score>=60?'貪婪':score>=40?'中性':score>=25?'恐懼':'極度恐懼';
+  return { score, rsi, vsHigh, momentum, label };
+}
+// Fallback 2: 用即時 VIX 快速推算（當 Notion 尚無資料時使用）
+function getVIXBasedMood(mkt) {
+  const vix = liveData['^VIX']?.p;
+  if (!vix) return null;
+  const ch = mkt==='tw' ? (liveData['^TWII']?.ch||0) : (liveData['^GSPC']?.ch||0);
+  const score = Math.max(5, Math.min(95, Math.round(100 - ((vix - 10) / 30) * 80 + ch * 1.5)));
+  const label = score>=75?'極度貪婪':score>=60?'貪婪':score>=40?'中性':score>=25?'恐懼':'極度恐懼';
+  return { score, rsi:50, vsHigh:50, momentum:50, label };
+}
 
 // ── 從 v8/chart meta 自動抓 EPS、Short Interest、ETF P/E ────
 async function fetchChartMeta(symbol) {
@@ -723,11 +749,11 @@ const SENT_TW={
     {l:'20日動量',     v:50,max:100,col:'linear-gradient(90deg,#f05060,#f0c040,#5b9cf6)',zone:['趨弱','趨強'],signal:'載入中…'},
   ],
   pe:[
-    {n:'台股加權 P/E',v:'--',avg:'均 17x',sig:'ok',sl:'載入中'},
-    {n:'台積電 2330', v:'--',avg:'均 18x',sig:'ok',sl:'載入中'},
-    {n:'金融類股',    v:'--',avg:'均 13x',sig:'ok',sl:'載入中'},
-    {n:'電子類股',    v:'--',avg:'均 16x',sig:'ok',sl:'載入中'},
-    {n:'傳產類股',    v:'--',avg:'均 12x',sig:'ok',sl:'載入中'},
+    {n:'台股加權 P/E',    v:'--',avg:'均 17x',sig:'ok',sl:'載入中'},
+    {n:'台積電 2330 P/E', v:'--',avg:'均 18x',sig:'ok',sl:'載入中'},
+    {n:'金融類股 P/E',    v:'--',avg:'均 13x',sig:'ok',sl:'手動更新'},
+    {n:'電子類股 P/E',    v:'--',avg:'均 16x',sig:'ok',sl:'手動更新'},
+    {n:'傳產類股 P/E',    v:'--',avg:'均 12x',sig:'ok',sl:'手動更新'},
   ]
 };
 const SENT_US={
@@ -1323,18 +1349,11 @@ function renderLS(){
         ${s.name ? `<div style="font-size:9px;color:var(--txt3);margin-top:1px">${s.name}</div>` : ''}
       </div>
       <div class="sc-bars">
-        <div class="sc-bar-row">
-          <span class="sc-bar-lbl" style="color:var(--up)">多</span>
-          <div class="sc-bar-w"><div class="sc-bar-f" style="width:${s.lv}%;background:var(--up)"></div></div>
+        <div class="ls-wrap" style="height:14px;border-radius:4px;margin-bottom:3px">
+          <div class="ls-long" style="flex:${s.lv};font-size:8.5px">${s.lv}%</div>
+          <div class="ls-short" style="flex:${s.sv};font-size:8.5px">${s.sv}%</div>
         </div>
-        <div class="sc-bar-row">
-          <span class="sc-bar-lbl" style="color:var(--dn)">空</span>
-          <div class="sc-bar-w"><div class="sc-bar-f" style="width:${s.sv}%;background:var(--dn)"></div></div>
-        </div>
-      </div>
-      <div class="sc-total">
-        <div class="sc-val" style="color:var(--up)">${s.lv}%</div>
-        <div class="sc-days" style="color:var(--dn);font-size:11px;font-family:var(--mono);font-weight:600">${s.sv}%</div>
+        <div style="font-size:9px;color:var(--txt3)">${s.net}</div>
       </div>
     </div>`;
   });
