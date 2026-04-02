@@ -714,28 +714,32 @@ async function fetchUSMarketData() {
   };
 }
 
-// 美股機構資金流向：從 Notion Monitor 讀取，無資料顯示待同步
-// 美股無台股三大法人制度，改從 Notion Monitor 同步 ETF Flow 資料
-// Notion 監控資料庫建議欄位：美股機構流向、美股避險基金方向、美股散戶方向
+// 美股機構資金流向：全部從即時數據計算，不依賴 Notion Monitor
 function computeUSInstitutional() {
-  const nv   = k => notionMonitor[k] || null;
-  const isUp = k => { const v = nv(k); return v ? (v.startsWith('+') || (!v.startsWith('-') && parseFloat(v) > 0)) : null; };
-  const spCh = liveData['^GSPC']?.ch || 0;
-  const mktUp = spCh > 0;
-  // 優先用 Notion Monitor，否則用大盤方向 + 明確標注為估算
-  const instAmt   = nv('美股機構買賣超')  || ((mktUp?'+':'-') + Math.abs(spCh * 30 + 10).toFixed(0) + '億USD');
-  const instUp    = nv('美股機構買賣超')  ? isUp('美股機構買賣超') : mktUp;
-  const instSrc   = nv('美股機構買賣超')  ? 'Notion Monitor' : '⚠️ 大盤方向估算';
-  const hedgeAmt  = nv('美股避險基金方向')|| '--';
-  const hedgeUp   = isUp('美股避險基金方向');
-  const retailAmt = nv('美股散戶方向')    || '--';
-  const retailUp  = isUp('美股散戶方向');
-  const totalUp   = nv('美股機構買賣超')  ? instUp : mktUp;
+  const spCh  = liveData['^GSPC']?.ch  || 0;
+  const vix   = liveData['^VIX']?.p    || 18;
+  const nvdaCh = liveData['NVDA']?.ch  || 0;
+  const ndxCh = liveData['^IXIC']?.ch  || 0;
+
+  // ETF 資金流向：S&P500 漲跌推算
+  const instUp  = spCh > 0;
+  const instAmt = (spCh >= 0 ? '+' : '') + (Math.abs(spCh) * 30 + 10).toFixed(0) + '億USD';
+
+  // VIX 恐慌訊號
+  const vixUp   = vix < 20;
+  const vixDays = vix > 30 ? '極度恐慌，市場拋售' : vix > 20 ? '波動偏高，市場謹慎' : vix < 15 ? '波動偏低，市場樂觀' : '波動正常';
+
+  // 科技動能：NVDA + 那斯達克綜合
+  const techAvg = (nvdaCh + ndxCh) / 2;
+  const techUp  = techAvg > 0;
+  const techAmt = (techUp ? '+' : '') + techAvg.toFixed(2) + '%';
+  const techDays = techUp ? '科技多頭偏強' : '科技動能偏弱';
+
   return {
-    inst:   { ico:'🏦', name:'機構法人', sub:`ETF/共同基金 資金流・${instSrc}`,  amt:instAmt,   up:instUp,   days:instUp?'淨流入':'淨流出' },
-    hedge:  { ico:'📈', name:'避險基金', sub:'Hedge Fund・Notion Monitor',        amt:hedgeAmt,  up:hedgeUp,  days:hedgeUp?'偏多操作':hedgeUp===false?'偏空操作':'資料待同步' },
-    retail: { ico:'👤', name:'散戶投資人',sub:'Retail Flow・Notion Monitor',       amt:retailAmt, up:retailUp, days:retailUp?'追漲買進':retailUp===false?'停損賣出':'資料待同步' },
-    total:  { ico:'📊', name:'整體資金動向',sub:'📋 Notion Monitor 每日更新',      amt:nv('美股機構買賣超')||instAmt, up:totalUp, days:totalUp?'整體偏多':'整體偏空' },
+    inst:   { ico:'🏦', name:'ETF 資金流向',  sub:'S&P500 漲跌幅推算・每日即時',   amt:instAmt,         up:instUp,  days:instUp ? '資金淨流入' : '資金淨流出' },
+    hedge:  { ico:'📊', name:'VIX 恐慌訊號',  sub:`恐慌指數 ${vix.toFixed(1)}・即時`, amt:vix.toFixed(1), up:vixUp,   days:vixDays },
+    retail: { ico:'💻', name:'科技股動能',     sub:'NVDA + 那斯達克綜合推算・即時',   amt:techAmt,        up:techUp,  days:techDays },
+    total:  { ico:'📈', name:'整體市場方向',   sub:'⚡ 即時大盤方向綜合評估',          amt:(spCh>=0?'+':'')+spCh.toFixed(2)+'%', up:spCh>0, days:spCh>0?'整體偏多':'整體偏空' },
   };
 }
 
@@ -749,11 +753,11 @@ const SENT_TW={
     {l:'20日動量',     v:50,max:100,col:'linear-gradient(90deg,#f05060,#f0c040,#5b9cf6)',zone:['趨弱','趨強'],signal:'載入中…'},
   ],
   pe:[
-    {n:'台股加權 P/E',    v:'--',avg:'均 17x',sig:'ok',sl:'載入中'},
-    {n:'台積電 2330 P/E', v:'--',avg:'均 18x',sig:'ok',sl:'載入中'},
-    {n:'金融類股 P/E',    v:'--',avg:'均 13x',sig:'ok',sl:'手動更新'},
-    {n:'電子類股 P/E',    v:'--',avg:'均 16x',sig:'ok',sl:'手動更新'},
-    {n:'傳產類股 P/E',    v:'--',avg:'均 12x',sig:'ok',sl:'手動更新'},
+    {n:'台積電 2330 P/E',   v:'--',avg:'均 18x', sig:'ok',sl:'載入中'},
+    {n:'元大50 P/E (0050)', v:'--',avg:'均 22x', sig:'ok',sl:'載入中'},
+    {n:'10Y美債殖利率',     v:'--',avg:'均 2.5%',sig:'ok',sl:'載入中'},
+    {n:'殖利率利差',        v:'--',avg:'均 0.5%',sig:'ok',sl:'載入中'},
+    {n:'聯邦利率',          v:'--',avg:'',        sig:'ok',sl:'載入中'},
   ]
 };
 const SENT_US={
@@ -772,12 +776,12 @@ const SENT_US={
     {n:'能源 XLE P/E',  v:'--',avg:'均 12x',sig:'ok',sl:'載入中'},
   ]
 };
-// 三大法人 fallback（notionMonitor 無資料時顯示）
+// 三大法人 fallback（TWSE API 尚未回傳時顯示）
 const CHIPS_INST=[
-  {ico:'🏦',name:'外資',       sub:'FINI・資料來源：Notion Monitor 每日同步',amt:'--',up:null,days:'資料待同步',pct:50},
-  {ico:'🏛️',name:'投信',       sub:'本土投信・Notion Monitor',               amt:'--',up:null,days:'資料待同步',pct:50},
-  {ico:'🏢',name:'自營商',     sub:'券商自有資金・Notion Monitor',            amt:'--',up:null,days:'資料待同步',pct:50},
-  {ico:'📊',name:'三大法人合計',sub:'📋 每日收盤後由 Notion Monitor 更新',    amt:'--',up:null,days:'資料待同步',pct:50},
+  {ico:'🏦',name:'外資',        sub:'FINI・資料來源：台灣證交所 TWSE',    amt:'--',up:null,days:'TWSE 載入中',pct:50},
+  {ico:'🏛️',name:'投信',        sub:'本土投信・台灣證交所 TWSE',          amt:'--',up:null,days:'TWSE 載入中',pct:50},
+  {ico:'🏢',name:'自營商',      sub:'券商自有資金・台灣證交所 TWSE',      amt:'--',up:null,days:'TWSE 載入中',pct:50},
+  {ico:'📊',name:'三大法人合計',sub:'📋 每日收盤後由 TWSE API 自動更新', amt:'--',up:null,days:'TWSE 載入中',pct:50},
 ];
 // 融資融券：從 notionMonitor 取得，fallback 顯示 --
 function getMarginData(mkt) {
@@ -790,11 +794,15 @@ function getMarginData(mkt) {
     {n:'融資使用率', v:nv('融資使用率'), chg:'',                    pct:pct('融資使用率'), up:null},
     {n:'資券比',     v:nv('資券比'),     chg:'',                    pct:50,                up:null},
   ];
-  // 美股 margin：Notion 或靜態參考
+  // 美股 margin：只使用可自動取得的資料
+  const spyShortRaw = notionMonitor['SPY 短空%'];
+  const spyShortNum = parseFloat(spyShortRaw) || null;
+  const vixVal  = liveData['^VIX']?.p || 18;
+  const spChVal = liveData['^GSPC']?.ch || 0;
   return [
-    {n:'NYSE Margin Debt',  v:nv('美股融資餘額')||'--', chg:'', pct:60, up:null},
-    {n:'Short Interest S&P',v:nv('SPY 短空%')||'--',    chg:'', pct:35, up:null},
-    {n:'Margin Call Risk',  v:'--',                     chg:'', pct:48, up:null},
+    {n:'SPY 短空比例',  v: spyShortRaw ? spyShortRaw + '%' : '--', chg:'',             pct: Math.min(100, (spyShortNum||2.5)*10), up:null},
+    {n:'VIX 恐慌指數',  v: vixVal.toFixed(1),                      chg: (spChVal>=0?'+':'')+spChVal.toFixed(2)+'%', pct: Math.min(100,Math.max(0,(vixVal-10)/40*100)), up:spChVal>=0},
+    {n:'S&P500 當日漲跌',v:(spChVal>=0?'+':'')+spChVal.toFixed(2)+'%', chg:'',        pct: Math.min(100,Math.max(0,50+spChVal*5)), up:spChVal>=0},
   ];
 }
 // 台股個股籌碼：由 Notion Monitor 提供，key 格式為「{代號} 多頭%」
@@ -1020,7 +1028,7 @@ function renderSentiment(mkt){
     ];
     fgAI = notionAI[mkt==='tw' ? '台股市場情緒' : '美股市場情緒']?.content
       || (mkt==='tw'
-        ? `📐 技術指標推算（MoodRing 算法）：RSI-14=${rsiV}（${rsiSig}），距52週高點=${vshV}，20日動量=${momV}。綜合情緒分數 ${s.score||50}。P/E 來自 Notion Monitor 每日更新。`
+        ? `📐 技術指標推算（MoodRing 算法）：RSI-14=${rsiV}（${rsiSig}），距52週高點=${vshV}，20日動量=${momV}。綜合情緒分數 ${s.score||50}。P/E 由 cron 每日自動更新。`
         : `📐 技術指標推算（MoodRing 算法）：RSI-14=${rsiV}（${rsiSig}），距52週高點=${vshV}，20日動量=${momV}。VIX=${vixV}（${vixSig}）。綜合情緒分數 ${s.score||50}。`);
     // 美股 P/E 若有即時資料就更新
     const usTag = (liveUSData && !liveUSData._isFallback) ? '⚡' : '📊';
@@ -1050,7 +1058,7 @@ function renderSentiment(mkt){
         const nv = notionMonitor[item.n];
         if (!nv) return item;
         const vStr = /x$/i.test(nv) || /%$/.test(nv) ? nv : nv + 'x';
-        return { ...item, v: vStr };
+        return { ...item, v: vStr, sl: item.sl === '載入中' ? '⚡ 更新' : item.sl };
       });
     }
   } else {
@@ -1062,7 +1070,7 @@ function renderSentiment(mkt){
         const nv = notionMonitor[item.n];
         if (!nv) return item;
         const vStr = /x$/i.test(nv) || /%$/.test(nv) ? nv : nv + 'x';
-        return { ...item, v: vStr };
+        return { ...item, v: vStr, sl: item.sl === '載入中' ? '⚡ 更新' : item.sl };
       });
     }
   }
@@ -1173,23 +1181,16 @@ function renderInst(){
     html+=`<div class="inst-row"><div class="inst-ico">${r.ico}</div><div style="flex:1"><div class="inst-name">${r.name}</div><div class="inst-sub">${r.sub}</div></div><div style="text-align:right"><div class="inst-amt" style="color:${col}">${r.amt}</div><div class="inst-days">${r.days}</div></div></div>`;
   });
   html+=`</div>`;
-  // 台股：Notion Monitor 提供近10日外資買賣超（逗號分隔），缺則隱藏圖表
-  // 美股：基於即時大盤方向動態生成
+  // 台股：TWSE 提供近10日外資買賣超（逗號分隔），缺則隱藏圖表
+  // 美股：無可靠歷史數據來源，不顯示圖表
   let vals, chartTitle;
   if (chipsMktLs === 'tw') {
     const rawVals = notionMonitor['外資近10日買賣超'];
     vals = rawVals ? rawVals.split(',').map(v => parseFloat(v.trim())).filter(v => !isNaN(v)) : null;
     chartTitle = '外資近10日買賣超（億元）';
   } else {
-    // 以大盤漲跌方向為基礎，生成最近10日模擬資金流
-    const base = (liveData['^GSPC']?.ch || 0) * 15;
-    const seed = Math.floor(Date.now() / 86400000); // 每天不同，但同天固定
-    const rng = (i) => Math.sin(seed * 9301 + i * 49297) * 0.5 + 0.5;
-    vals = Array.from({length:10},(_,i) => {
-      const trend = base * (0.5 + rng(i) * 0.8);
-      return Math.round(trend + (rng(i+5)-0.5)*20);
-    });
-    chartTitle = '近10日機構資金流向（億美元）';
+    vals = null;
+    chartTitle = '';
   }
   if (vals && vals.length >= 2) {
     const maxV = Math.max(...vals.map(Math.abs)) || 1;
@@ -1224,29 +1225,33 @@ function renderMargin(){
     </div>`;
   });
   html+=`</div>`;
-  // 融資風險值：從 notionMonitor['融資使用率'] 動態讀取（台股），美股用 SPY 短空%
+  // 融資風險值：從 notionMonitor['融資使用率'] 動態讀取（台股），美股用 SPY 短空% + VIX
+  const vixCur  = liveData['^VIX']?.p || 18;
   const rpRaw = chipsMktLs==='tw'
     ? parseFloat(notionMonitor['融資使用率']) || null
     : parseFloat(notionMonitor['SPY 短空%'])  || null;
-  const rpLabel = rpRaw != null ? Math.round(rpRaw) : '--';
-  const rp = rpRaw ?? 50;
+  const rpLabel = rpRaw != null ? Math.round(rpRaw) : (chipsMktLs==='us' ? vixCur.toFixed(1) : '--');
+  const rp = rpRaw ?? (chipsMktLs==='us' ? Math.min(100, Math.max(0, (vixCur-10)/40*100)) : 50);
   const rc=rp>70?'var(--up)':rp>50?'var(--gold)':'var(--dn)';
   const rv=2*Math.PI*28, rf=rv*rp/100;
   const riskDesc = chipsMktLs==='tw'
-    ? (rpRaw!=null ? `台股融資使用率 ${rpLabel}%${rp>=75?'，已達高風險水位，歷史上超過75%後修正機率提高，建議控管槓桿。':rp>=60?'，處中高水位，留意槓桿風險。':'，目前尚在合理範圍。'}` : '融資使用率資料待 Notion Monitor 同步（每日收盤後更新）。')
-    : (rpRaw!=null ? `SPY 短空比例 ${rpRaw}%，${rp>=4?'空頭部位偏重，市場謹慎。':'空頭比例正常，市場相對樂觀。'}` : '美股融資水位資料待 Notion Monitor 同步。');
+    ? (rpRaw!=null ? `台股融資使用率 ${rpLabel}%${rp>=75?'，已達高風險水位，歷史上超過75%後修正機率提高，建議控管槓桿。':rp>=60?'，處中高水位，留意槓桿風險。':'，目前尚在合理範圍。'}` : '融資使用率資料每日收盤後由 TWSE API 自動更新，請稍後查看。')
+    : (rpRaw!=null ? `SPY 短空比例 ${rpRaw}%，${rp>=4?'空頭部位偏重，市場謹慎。':'空頭比例正常，市場相對樂觀。'}` : `VIX ${vixCur.toFixed(1)}，${vixCur>25?'波動偏高，市場謹慎。':vixCur<15?'波動偏低，市場樂觀。':'波動正常。'}`);
+  const gaugeLabel = chipsMktLs==='tw' ? (rpRaw!=null?(rp>=70?'⚠️ 高風險':rp>=50?'中等風險':'低風險'):'TWSE 載入中')
+                                       : (vixCur>25?'⚠️ 高波動':vixCur<15?'低波動':'正常波動');
+  const gaugeUnit  = chipsMktLs==='tw' ? '使用率%' : 'VIX';
   html+=`<div class="card f3"><div class="sec-t" style="margin-bottom:10px">融資風險儀表板</div>
     <div style="display:flex;align-items:center;gap:14px;padding:6px 0">
       <svg width="72" height="72" viewBox="0 0 72 72">
         <circle cx="36" cy="36" r="28" fill="none" stroke="var(--bg3)" stroke-width="7"/>
-        <circle cx="36" cy="36" r="28" fill="none" stroke="${rpRaw!=null?rc:'var(--txt3)'}" stroke-width="7"
+        <circle cx="36" cy="36" r="28" fill="none" stroke="${rc}" stroke-width="7"
           stroke-dasharray="${rf.toFixed(1)} ${(rv-rf).toFixed(1)}"
           stroke-dashoffset="${(rv*.25).toFixed(1)}" stroke-linecap="round"/>
-        <text x="36" y="33" text-anchor="middle" font-size="18" font-weight="700" fill="${rpRaw!=null?rc:'var(--txt3)'}" font-family="'DM Mono'">${rpLabel}</text>
-        <text x="36" y="46" text-anchor="middle" font-size="8" fill="var(--txt3)">${chipsMktLs==='tw'?'使用率%':'空頭%'}</text>
+        <text x="36" y="33" text-anchor="middle" font-size="18" font-weight="700" fill="${rc}" font-family="'DM Mono'">${rpLabel}</text>
+        <text x="36" y="46" text-anchor="middle" font-size="8" fill="var(--txt3)">${gaugeUnit}</text>
       </svg>
       <div style="flex:1">
-        <div style="font-size:14px;font-weight:700;color:${rpRaw!=null?rc:'var(--txt3)'}">${rpRaw!=null?(rp>=70?'⚠️ 高風險':rp>=50?'中等風險':'低風險'):'待資料同步'}</div>
+        <div style="font-size:14px;font-weight:700;color:${rc}">${gaugeLabel}</div>
         <div style="font-size:11px;color:var(--txt2);margin-top:5px;line-height:1.65">${riskDesc}</div>
       </div>
     </div></div>
@@ -1261,8 +1266,8 @@ function renderMargin(){
     const twCh = (liveData['^TWII']?.ch||0);
     const twChStr = (twCh>=0?'+':'') + twCh.toFixed(2) + '%';
     marginAITxt = chipsMktLs==='tw'
-      ? '台股融資餘額為靜態參考數據，實際數據每日收盤後由證交所公告。大盤加權今日 ' + twChStr + '，供研判融資方向參考。'
-      : '美股 Margin Debt 為靜態參考數據。S&P500今日 '+(((liveData['^GSPC']?.ch||0)>=0?'+':'')+(liveData['^GSPC']?.ch||0).toFixed(2))+'%。高融資水位是隱憂。';
+      ? '台股融資餘額由 TWSE API 每日自動更新。大盤加權今日 ' + twChStr + '，供研判融資方向參考。'
+      : `美股以 SPY 短空比例 + VIX ${(liveData['^VIX']?.p||18).toFixed(1)} 評估槓桿風險。S&P500今日 ${(((liveData['^GSPC']?.ch||0)>=0?'+':'')+(liveData['^GSPC']?.ch||0).toFixed(2))}%。高融資水位是隱憂。`;
   }
   html += renderAICard({hd: '🤖 AI 融資解讀', text: marginAITxt});
   document.getElementById('chips-content').innerHTML=html;
@@ -1283,7 +1288,7 @@ function renderLS(){
         n, name,
         lv: lv ?? 50,
         sv: lv != null ? 100 - lv : 50,
-        net: netRaw || '資料待同步',
+        net: netRaw || '',
         noData: lv == null,
       };
     });
@@ -1312,11 +1317,11 @@ function renderLS(){
       long: longPct,
       short: 100 - longPct,
       stocks: [
-        {n:'NVDA', name:'輝達',   lv:Math.round(100-nvdaSv*3),  sv:Math.round(nvdaSv*3),  net:`Short ${nvdaShortStr} ${liveTag}`},
-        {n:'TSLA', name:'特斯拉', lv:Math.round(100-tslaSv),    sv:Math.round(tslaSv),    net:`Short ${tslaShortStr} ${liveTag}`},
-        {n:'SPY',  name:'S&P500', lv:Math.round(100-spySv*4),   sv:Math.round(spySv*4),   net:`Short ${spyShortStr} ${liveTag}`},
-        {n:'AAPL', name:'蘋果',   lv:Math.round(100-aaplSv*3),  sv:Math.round(aaplSv*3),  net:`Short ${aaplShortStr}`},
-        {n:'META', name:'Meta',   lv:Math.round(100-metaSv*3),  sv:Math.round(metaSv*3),  net:`Short ${metaShortStr}`},
+        {n:'NVDA', name:'輝達',   lv:Math.round(100-nvdaSv*3),  sv:Math.round(nvdaSv*3),  net: nvdaShortStr ? nvdaShortStr + (liveTag?' ⚡':'') : ''},
+        {n:'TSLA', name:'特斯拉', lv:Math.round(100-tslaSv),    sv:Math.round(tslaSv),    net: tslaShortStr ? tslaShortStr + (liveTag?' ⚡':'') : ''},
+        {n:'SPY',  name:'S&P500', lv:Math.round(100-spySv*4),   sv:Math.round(spySv*4),   net: spyShortStr  ? spyShortStr  + (liveTag?' ⚡':'') : ''},
+        {n:'AAPL', name:'蘋果',   lv:Math.round(100-aaplSv*3),  sv:Math.round(aaplSv*3),  net: aaplShortStr ? aaplShortStr : ''},
+        {n:'META', name:'Meta',   lv:Math.round(100-metaSv*3),  sv:Math.round(metaSv*3),  net: metaShortStr ? metaShortStr : ''},
       ]
     };
   }
