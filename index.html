@@ -356,6 +356,14 @@ body{color:var(--txt);max-width:430px;margin:0 auto}
       <div><div class="s-lbl">早報推播通知</div><div class="s-sub">每日 07:30 推送</div></div>
       <div class="toggle on" onclick="this.classList.toggle('on')"><div class="toggle-k"></div></div>
     </div>
+    <!-- 手動觸發 cron 更新 -->
+    <div class="setting-row">
+      <div>
+        <div class="s-lbl">立即更新數據</div>
+        <div class="s-sub">觸發 cron 更新市場數據（約 15 秒）</div>
+      </div>
+      <button id="cron-btn" onclick="manualCronUpdate()" style="padding:6px 14px;border-radius:8px;background:var(--blue);color:#fff;border:none;font-size:12px;cursor:pointer;font-weight:600">更新</button>
+    </div>
     <!-- 漲跌顏色切換 -->
     <div class="setting-row" style="border-bottom:none">
       <div>
@@ -753,11 +761,11 @@ const SENT_TW={
     {l:'20日動量',     v:50,max:100,col:'linear-gradient(90deg,#f05060,#f0c040,#5b9cf6)',zone:['趨弱','趨強'],signal:'載入中…'},
   ],
   pe:[
-    {n:'台積電 2330 P/E',   v:'--',avg:'均 18x', sig:'ok',sl:'載入中'},
-    {n:'元大50 P/E (0050)', v:'--',avg:'均 22x', sig:'ok',sl:'載入中'},
-    {n:'10Y美債殖利率',     v:'--',avg:'均 2.5%',sig:'ok',sl:'載入中'},
-    {n:'殖利率利差',        v:'--',avg:'均 0.5%',sig:'ok',sl:'載入中'},
-    {n:'聯邦利率',          v:'--',avg:'',        sig:'ok',sl:'載入中'},
+    {n:'台積電 2330 P/E',   label:'台積電 2330',       section:'pe',    v:'--',avg:'均 18x', sig:'ok',sl:'載入中'},
+    {n:'元大50 P/E (0050)', label:'元大台灣50 0050',    section:'pe',    v:'--',avg:'均 22x', sig:'ok',sl:'載入中'},
+    {n:'10Y美債殖利率',     label:'10Y美債殖利率',      section:'macro', v:'--',avg:'均 2.5%',sig:'ok',sl:'載入中'},
+    {n:'殖利率利差',        label:'殖利率利差 T10Y2Y',  section:'macro', v:'--',avg:'均 0.5%',sig:'ok',sl:'載入中'},
+    {n:'聯邦利率',          label:'聯邦利率 Fed Rate',  section:'macro', v:'--',avg:'',        sig:'ok',sl:'載入中'},
   ]
 };
 const SENT_US={
@@ -769,11 +777,14 @@ const SENT_US={
     {l:'VIX 恐慌指數', v:50,max:80, col:'linear-gradient(90deg,#5b9cf6,#f0c040,#f05060)',zone:['低波','高波'],signal:'載入中…'},
   ],
   pe:[
-    {n:'S&P500 P/E (SPY)',   v:'--',avg:'均 17x',sig:'ok',sl:'載入中'},
-    {n:'那斯達克 P/E (QQQ)', v:'--',avg:'均 28x',sig:'ok',sl:'載入中'},
-    {n:'科技 XLK P/E',  v:'--',avg:'均 25x',sig:'ok',sl:'載入中'},
-    {n:'金融 XLF P/E',  v:'--',avg:'均 16x',sig:'ok',sl:'載入中'},
-    {n:'能源 XLE P/E',  v:'--',avg:'均 12x',sig:'ok',sl:'載入中'},
+    {n:'S&P500 P/E (SPY)',   label:'S&P500 SPY',   section:'pe',    v:'--',avg:'均 17x',sig:'ok',sl:'載入中'},
+    {n:'那斯達克 P/E (QQQ)', label:'那斯達克 QQQ', section:'pe',    v:'--',avg:'均 28x',sig:'ok',sl:'載入中'},
+    {n:'科技 XLK P/E',       label:'科技 XLK',     section:'pe',    v:'--',avg:'均 25x',sig:'ok',sl:'載入中'},
+    {n:'金融 XLF P/E',       label:'金融 XLF',     section:'pe',    v:'--',avg:'均 16x',sig:'ok',sl:'載入中'},
+    {n:'能源 XLE P/E',       label:'能源 XLE',     section:'pe',    v:'--',avg:'均 12x',sig:'ok',sl:'載入中'},
+    {n:'10Y美債殖利率',      label:'10Y美債殖利率',section:'macro', v:'--',avg:'均 2.5%',sig:'ok',sl:'載入中'},
+    {n:'殖利率利差',         label:'殖利率利差 T10Y2Y',section:'macro',v:'--',avg:'均 0.5%',sig:'ok',sl:'載入中'},
+    {n:'聯邦利率',           label:'聯邦利率 Fed Rate',section:'macro',v:'--',avg:'',     sig:'ok',sl:'載入中'},
   ]
 };
 // 三大法人 fallback（TWSE API 尚未回傳時顯示）
@@ -1042,12 +1053,17 @@ function renderSentiment(mkt){
         if (v <= exp)   return {sig:'hi', sl:'略貴'};
         return {sig:'hi', sl:'偏貴'};
       }
+      const nmv = k => notionMonitor[k] || '--';
+      const nsl = k => notionMonitor[k] ? '⚡ 更新' : '載入中';
       pe = [
-        {n:'S&P500 P/E (SPY)',   v:(liveUSData.spyPE||'23.1')+'x',   avg:'均 17x', ...peLabel(liveUSData.spyPE,  14, 20, 25)},
-        {n:'那斯達克 P/E (QQQ)', v:(liveUSData.qqqPE||'36.4')+'x',   avg:'均 28x', ...peLabel(liveUSData.qqqPE,  22, 32, 40)},
-        {n:'科技 XLK P/E', v:(notionMonitor['科技 XLK P/E']||'--'), avg:'均 25x', sig:'ok', sl:notionMonitor['科技 XLK P/E']?'正常':'載入中'},
-        {n:'金融 XLF P/E', v:(notionMonitor['金融 XLF P/E']||'--'), avg:'均 16x', sig:'ok', sl:notionMonitor['金融 XLF P/E']?'正常':'載入中'},
-        {n:'能源 XLE P/E', v:(notionMonitor['能源 XLE P/E']||'--'), avg:'均 12x', sig:'ok', sl:notionMonitor['能源 XLE P/E']?'正常':'載入中'},
+        {n:'S&P500 P/E (SPY)',   label:'S&P500 SPY',   section:'pe',    v:(liveUSData.spyPE||'23.1')+'x', avg:'均 17x', ...peLabel(liveUSData.spyPE,  14, 20, 25)},
+        {n:'那斯達克 P/E (QQQ)', label:'那斯達克 QQQ', section:'pe',    v:(liveUSData.qqqPE||'36.4')+'x', avg:'均 28x', ...peLabel(liveUSData.qqqPE,  22, 32, 40)},
+        {n:'科技 XLK P/E',       label:'科技 XLK',     section:'pe',    v:nmv('科技 XLK P/E'), avg:'均 25x', sig:'ok', sl:nsl('科技 XLK P/E')},
+        {n:'金融 XLF P/E',       label:'金融 XLF',     section:'pe',    v:nmv('金融 XLF P/E'), avg:'均 16x', sig:'ok', sl:nsl('金融 XLF P/E')},
+        {n:'能源 XLE P/E',       label:'能源 XLE',     section:'pe',    v:nmv('能源 XLE P/E'), avg:'均 12x', sig:'ok', sl:nsl('能源 XLE P/E')},
+        {n:'10Y美債殖利率', label:'10Y美債殖利率',     section:'macro', v:nmv('10Y美債殖利率'), avg:'均 2.5%', sig:'ok', sl:nsl('10Y美債殖利率')},
+        {n:'殖利率利差',    label:'殖利率利差 T10Y2Y', section:'macro', v:nmv('殖利率利差'),    avg:'均 0.5%', sig:'ok', sl:nsl('殖利率利差')},
+        {n:'聯邦利率',      label:'聯邦利率 Fed Rate', section:'macro', v:nmv('聯邦利率'),      avg:'',        sig:'ok', sl:nsl('聯邦利率')},
       ];
     } else {
       pe = mkt==='tw' ? SENT_TW.pe : SENT_US.pe;
@@ -1118,16 +1134,35 @@ function renderSentiment(mkt){
       <div class="gauge-val" style="color:${col}">${g.v}</div>
     </div>`;
   });
-  html+=`</div><div class="card f4"><div class="sec-t" style="margin-bottom:10px">本益比估值分析 <span style="font-size:9px;color:var(--txt3)">(靜態參考)</span></div>`;
-  pe.forEach(p=>{
-    html+=`<div class="pe-row">
-      <div class="pe-name">${p.n}</div>
-      <div class="pe-val ${p.sig==='hi'?'up':p.sig==='lo'?'dn':''}">${p.v}</div>
-      <div class="pe-avg">${p.avg}</div>
-      <span class="pe-signal sig-${p.sig}">${p.sl}</span>
-    </div>`;
-  });
-  html+=`</div>`;
+  const peItems    = pe.filter(p => !p.section || p.section === 'pe');
+  const macroItems = pe.filter(p => p.section === 'macro');
+  if (peItems.length > 0) {
+    html+=`</div><div class="card f4"><div class="sec-t" style="margin-bottom:10px">估值分析</div>`;
+    peItems.forEach(p=>{
+      html+=`<div class="pe-row">
+        <div class="pe-name">${p.label || p.n}</div>
+        <div class="pe-val ${p.sig==='hi'?'up':p.sig==='lo'?'dn':''}">${p.v}</div>
+        <div class="pe-avg">${p.avg}</div>
+        <span class="pe-signal sig-${p.sig}">${p.sl}</span>
+      </div>`;
+    });
+    html+=`</div>`;
+  } else {
+    html+=`</div>`;
+  }
+  if (macroItems.length > 0) {
+    html+=`<div class="card f5"><div class="sec-t" style="margin-bottom:10px">總經指標</div>`;
+    macroItems.forEach(p=>{
+      const vCol = p.v !== '--' ? 'var(--txt)' : 'var(--txt3)';
+      html+=`<div class="pe-row">
+        <div class="pe-name">${p.label || p.n}</div>
+        <div class="pe-val" style="color:${vCol}">${p.v}</div>
+        <div class="pe-avg">${p.avg}</div>
+        <span class="pe-signal sig-${p.sig}">${p.sl}</span>
+      </div>`;
+    });
+    html+=`</div>`;
+  }
   document.getElementById('sent-content').innerHTML=html;
 }
 
@@ -1207,8 +1242,7 @@ function renderInst(){
         <span style="font-family:var(--mono);font-size:12px;font-weight:700;color:${sum>=0?'var(--up)':'var(--dn)'}">${sum>=0?'+':''}${sum.toFixed(0)}${chipsMktLs==='tw'?'億':'億美元'}</span>
       </div></div>`;
   }
-  const instAIKey = chipsMktLs==='tw' ? '台股籌碼' : '美股籌碼';
-  const instAIData = notionAI[instAIKey];
+  const instAIData = notionAI[chipsMktLs==='tw' ? '台股籌碼' : '美股籌碼'];
   const instAITxt = instAIData?.content || (chipsMktLs==='tw' ? '三大法人籌碼資料載入中…' : '美股機構資金流向載入中…');
   html += renderAICard({hd: '🤖 AI 籌碼解讀', text: instAITxt});
   document.getElementById('chips-content').innerHTML=html;
@@ -1257,8 +1291,7 @@ function renderMargin(){
     </div></div>
   `;
   // AI 解讀文字：優先用 Notion，否則 fallback
-  const marginAIKey = chipsMktLs==='tw' ? '台股籌碼' : '美股籌碼';
-  const marginAIData = notionAI[marginAIKey];
+  const marginAIData = notionAI[chipsMktLs==='tw' ? '台股融資' : '美股籌碼'];
   let marginAITxt;
   if (marginAIData?.content) {
     marginAITxt = marginAIData.content;
@@ -1364,8 +1397,7 @@ function renderLS(){
   });
 
   // AI 解讀（台股、美股分別，從 Notion 取）
-  const lsAIKey = isTW ? '台股籌碼' : '美股籌碼';
-  const lsAIData = notionAI[lsAIKey];
+  const lsAIData = notionAI[isTW ? '台股多空' : '美股籌碼'];
   const lsAITxt = lsAIData?.content || (isTW
     ? `台股多空比 ${d.long}:${d.short}，${d.long>55?'多方偏強':'整體偏空或震盪'}。資料為即時推算，僅供參考。`
     : `美股多空比 ${d.long}:${d.short}，${d.long>55?'多方偏強':'謹慎偏空'}。資料為即時推算，僅供參考。`);
@@ -1518,6 +1550,28 @@ async function sendMsg(){
     removeLoading();addMsg('ai','目前網路有問題，請稍後再試。\n\n可先問我「台股外資籌碼解讀」看示範 🦥');
   }
   document.getElementById('sbtn').disabled=false;
+}
+
+// ── 手動觸發 cron 更新 ────────────────────────────────────────────
+async function manualCronUpdate() {
+  const btn = document.getElementById('cron-btn');
+  if (!btn) return;
+  btn.textContent = '更新中…'; btn.disabled = true;
+  try {
+    const r = await fetch(`${VERCEL_API}/api/cron`, { signal: AbortSignal.timeout(30000) });
+    const d = await r.json();
+    btn.textContent = d.success ? '✅ 完成' : '❌ 失敗';
+    if (d.success) {
+      // 重新載入 Notion 數據
+      setTimeout(async () => {
+        await Promise.all([fetchNotionAI(), fetchNotionMonitor()]);
+        renderSentiment(sentMkt); renderChips(curChipsTab);
+      }, 2000);
+    }
+  } catch(e) {
+    btn.textContent = '❌ 失敗';
+  }
+  setTimeout(() => { btn.textContent = '更新'; btn.disabled = false; }, 4000);
 }
 
 // ── NAVIGATION ───────────────────────────────────────────────────
