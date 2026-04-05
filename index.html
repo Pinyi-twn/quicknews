@@ -1054,16 +1054,18 @@ function renderSentiment(mkt){
         return {sig:'hi', sl:'偏貴'};
       }
       const nmv = k => notionMonitor[k] || '--';
-      const nsl = k => notionMonitor[k] ? '⚡ 更新' : '載入中';
+      const xlkPEv = parseFloat(notionMonitor['科技 XLK P/E']);
+      const xlfPEv = parseFloat(notionMonitor['金融 XLF P/E']);
+      const xlePEv = parseFloat(notionMonitor['能源 XLE P/E']);
       pe = [
-        {n:'S&P500 P/E (SPY)',   label:'S&P500 SPY',   section:'pe',    v:(liveUSData.spyPE||'23.1')+'x', avg:'均 17x', ...peLabel(liveUSData.spyPE,  14, 20, 25)},
-        {n:'那斯達克 P/E (QQQ)', label:'那斯達克 QQQ', section:'pe',    v:(liveUSData.qqqPE||'36.4')+'x', avg:'均 28x', ...peLabel(liveUSData.qqqPE,  22, 32, 40)},
-        {n:'科技 XLK P/E',       label:'科技 XLK',     section:'pe',    v:nmv('科技 XLK P/E'), avg:'均 25x', sig:'ok', sl:nsl('科技 XLK P/E')},
-        {n:'金融 XLF P/E',       label:'金融 XLF',     section:'pe',    v:nmv('金融 XLF P/E'), avg:'均 16x', sig:'ok', sl:nsl('金融 XLF P/E')},
-        {n:'能源 XLE P/E',       label:'能源 XLE',     section:'pe',    v:nmv('能源 XLE P/E'), avg:'均 12x', sig:'ok', sl:nsl('能源 XLE P/E')},
-        {n:'10Y美債殖利率', label:'10Y美債殖利率',     section:'macro', v:nmv('10Y美債殖利率'), avg:'均 2.5%', sig:'ok', sl:nsl('10Y美債殖利率')},
-        {n:'殖利率利差',    label:'殖利率利差 T10Y2Y', section:'macro', v:nmv('殖利率利差'),    avg:'均 0.5%', sig:'ok', sl:nsl('殖利率利差')},
-        {n:'聯邦利率',      label:'聯邦利率 Fed Rate', section:'macro', v:nmv('聯邦利率'),      avg:'',        sig:'ok', sl:nsl('聯邦利率')},
+        {n:'S&P500 P/E (SPY)',   label:'S&P500 SPY',   section:'pe', v:(liveUSData.spyPE||'23.1')+'x', avg:'均 17x', ...peLabel(liveUSData.spyPE,  14, 20, 25)},
+        {n:'那斯達克 P/E (QQQ)', label:'那斯達克 QQQ', section:'pe', v:(liveUSData.qqqPE||'36.4')+'x', avg:'均 28x', ...peLabel(liveUSData.qqqPE,  22, 32, 40)},
+        {n:'科技 XLK P/E', label:'科技 XLK', section:'pe', v:nmv('科技 XLK P/E'), avg:'均 25x', ...(!isNaN(xlkPEv) ? peLabel(xlkPEv, 20, 28, 35) : {sig:'ok', sl:'--'})},
+        {n:'金融 XLF P/E', label:'金融 XLF', section:'pe', v:nmv('金融 XLF P/E'), avg:'均 16x', ...(!isNaN(xlfPEv) ? peLabel(xlfPEv, 12, 18, 22) : {sig:'ok', sl:'--'})},
+        {n:'能源 XLE P/E', label:'能源 XLE', section:'pe', v:nmv('能源 XLE P/E'), avg:'均 12x', ...(!isNaN(xlePEv) ? peLabel(xlePEv,  8, 14, 18) : {sig:'ok', sl:'--'})},
+        {n:'10Y美債殖利率', label:'10Y美債殖利率',     section:'macro', v:nmv('10Y美債殖利率'), avg:'均 2.5%', sig:'ok', sl: notionMonitor['10Y美債殖利率'] ? '已同步' : '--'},
+        {n:'殖利率利差',    label:'殖利率利差 T10Y2Y', section:'macro', v:nmv('殖利率利差'),    avg:'均 0.5%', sig:'ok', sl: notionMonitor['殖利率利差']    ? '已同步' : '--'},
+        {n:'聯邦利率',      label:'聯邦利率 Fed Rate', section:'macro', v:nmv('聯邦利率'),      avg:'',        sig:'ok', sl: notionMonitor['聯邦利率']       ? '已同步' : '--'},
       ];
     } else {
       pe = mkt==='tw' ? SENT_TW.pe : SENT_US.pe;
@@ -1074,7 +1076,7 @@ function renderSentiment(mkt){
         const nv = notionMonitor[item.n];
         if (!nv) return item;
         const vStr = /x$/i.test(nv) || /%$/.test(nv) ? nv : nv + 'x';
-        return { ...item, v: vStr, sl: item.sl === '載入中' ? '⚡ 更新' : item.sl };
+        return { ...item, v: vStr, sl: item.sl === '載入中' ? '已同步' : item.sl };
       });
     }
   } else {
@@ -1086,7 +1088,7 @@ function renderSentiment(mkt){
         const nv = notionMonitor[item.n];
         if (!nv) return item;
         const vStr = /x$/i.test(nv) || /%$/.test(nv) ? nv : nv + 'x';
-        return { ...item, v: vStr, sl: item.sl === '載入中' ? '⚡ 更新' : item.sl };
+        return { ...item, v: vStr, sl: item.sl === '載入中' ? '已同步' : item.sl };
       });
     }
   }
