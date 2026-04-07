@@ -113,10 +113,9 @@ body{color:var(--txt);max-width:430px;margin:0 auto}
 
 /* ── AD ── */
 /* ── VOICE BROADCAST ── */
-.voice-btn{display:flex;align-items:center;gap:5px;background:var(--bg3);border:1px solid var(--bdr2);border-radius:20px;padding:5px 12px;font-size:13px;font-weight:600;color:var(--txt2);cursor:pointer;font-family:var(--font);transition:all .18s;white-space:nowrap}
+.voice-btn{display:flex;align-items:center;justify-content:center;background:var(--bg3);border:1px solid var(--bdr2);border-radius:50%;width:30px;height:30px;font-size:15px;cursor:pointer;font-family:var(--font);transition:all .18s;flex-shrink:0;padding:0}
 .voice-btn:active{transform:scale(.95)}
 .voice-btn.playing{background:var(--bluebg);border-color:var(--blue);color:var(--blue)}
-.voice-btn.playing::before{content:'⏹ ';font-size:11px}
 
 .ad-card{background:linear-gradient(120deg,var(--bg2),var(--bg3));border:1px solid var(--bdr);border-radius:14px;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;margin:2px 0 10px}
 .ad-tag{font-size:9.5px;color:var(--txt3);margin-bottom:2px}
@@ -295,14 +294,12 @@ body{color:var(--txt);max-width:430px;margin:0 auto}
       <span class="live-dot"></span>
       <span class="sec-t">AI 市場摘要</span>
       <span style="font-size:11.5px;color:var(--txt3);font-family:var(--mono);margin-left:auto" id="today-date"></span>
+      <button id="voice-btn" class="voice-btn" onclick="toggleVoice()" title="語音播報">🔊</button>
     </div>
     <div id="mkt-summary" style="font-size:14.5px;color:var(--txt2);line-height:1.75"></div>
   </div>
   <div class="card f3" style="padding:4px 14px 4px">
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0 4px">
-      <span class="sec-t">快報列表</span>
-      <button id="voice-btn" class="voice-btn" onclick="toggleVoice()" title="語音播報">🔊 語音播報</button>
-    </div>
+    <div style="padding:8px 0 4px"><span class="sec-t">快報列表</span></div>
     <div id="news-feed"></div>
   </div>
   <div class="ad-card f4">
@@ -1007,13 +1004,11 @@ let voicePlaying = false;
 
 function buildBroadcastScript(){
   const lines = [];
-  // AI 市場摘要
-  const twSent = notionAI['台股市場情緒']?.content;
-  const usSent = notionAI['美股市場情緒']?.content;
   lines.push('速懶報 AI 廣播，今日市場快報。');
-  if (twSent) lines.push('台股市場：' + twSent);
-  if (usSent) lines.push('美股市場：' + usSent);
-  // 新聞標題
+  // 優先播報 AI 新聞摘要（快報頁專用），再補充台/美股情緒
+  const summary = notionAI['新聞摘要']?.content;
+  if (summary) lines.push(summary);
+  // 新聞標題（最多6則）
   const feed = document.querySelectorAll('#news-feed .news-title');
   if (feed.length) {
     lines.push('今日快報頭條：');
@@ -1030,7 +1025,7 @@ function toggleVoice(){
     voiceSynth.cancel();
     voicePlaying = false;
     btn.classList.remove('playing');
-    btn.textContent = '🔊 語音播報';
+    btn.textContent = '🔊';
     return;
   }
   const script = buildBroadcastScript();
@@ -1044,16 +1039,16 @@ function toggleVoice(){
   if (twVoice) voiceUtterance.voice = twVoice;
   voiceUtterance.onend = () => {
     voicePlaying = false;
-    if (btn) { btn.classList.remove('playing'); btn.textContent = '🔊 語音播報'; }
+    if (btn) { btn.classList.remove('playing'); btn.textContent = '🔊'; }
   };
   voiceUtterance.onerror = () => {
     voicePlaying = false;
-    if (btn) { btn.classList.remove('playing'); btn.textContent = '🔊 語音播報'; }
+    if (btn) { btn.classList.remove('playing'); btn.textContent = '🔊'; }
   };
   voiceSynth.speak(voiceUtterance);
   voicePlaying = true;
   btn.classList.add('playing');
-  btn.textContent = '停止播報';
+  btn.textContent = '⏹';
 }
 
 // ── SENTIMENT ────────────────────────────────────────────────────
@@ -1131,8 +1126,8 @@ function renderSentiment(mkt){
           <circle cx="55" cy="55" r="42" fill="none" stroke="${fgCol}" stroke-width="9"
             stroke-dasharray="${filled.toFixed(1)} ${(r-filled).toFixed(1)}"
             stroke-dashoffset="${(r*0.25).toFixed(1)}" stroke-linecap="round" opacity=".9"/>
-          <text x="55" y="55" text-anchor="middle" dominant-baseline="central" font-size="28" font-weight="700" fill="${fgCol}" font-family="'DM Mono'">${fgVal}</text>
-          <text x="55" y="76" text-anchor="middle" dominant-baseline="central" font-size="12" fill="var(--txt3)" font-family="'Noto Sans TC'">${fgLabel}</text>
+          <text x="55" y="47" text-anchor="middle" dominant-baseline="central" font-size="28" font-weight="700" fill="${fgCol}" font-family="'DM Mono'">${fgVal}</text>
+          <text x="55" y="72" text-anchor="middle" dominant-baseline="central" font-size="12" fill="var(--txt3)" font-family="'Noto Sans TC'">${fgLabel}</text>
         </svg>
       </div>
       <div style="flex:1">
@@ -1187,15 +1182,15 @@ function renderChips(){
   renderChipsAll();
 }
 function mkSubTabs(active){
-  return `<div style="display:flex;gap:6px;margin-bottom:12px">
-    <div style="flex:1;padding:5px 0;text-align:center;border-radius:10px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid var(--bdr);background:${'tw'===active?'#4db8ff':'var(--bg2)'};color:${'tw'===active?'#fff':'var(--txt3)'}" onclick="chipsSub(this,'tw')">台股</div>
-    <div style="flex:1;padding:5px 0;text-align:center;border-radius:10px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid var(--bdr);background:${'us'===active?'#4db8ff':'var(--bg2)'};color:${'us'===active?'#fff':'var(--txt3)'}" onclick="chipsSub(this,'us')">美股</div>
+  return `<div class="mkt-tabs">
+    <div class="mkt-tab${active==='tw'?' on':''}" onclick="chipsSub(this,'tw')">台股</div>
+    <div class="mkt-tab${active==='us'?' on':''}" onclick="chipsSub(this,'us')">美股</div>
   </div>`;
 }
 function chipsSub(el,m){
   chipsMktLs=m;
-  el.parentElement.querySelectorAll('div').forEach(b=>{b.style.background='var(--bg2)';b.style.color='var(--txt3)'});
-  el.style.background='#4db8ff';el.style.color='#fff';
+  el.parentElement.querySelectorAll('.mkt-tab').forEach(b=>b.classList.remove('on'));
+  el.classList.add('on');
   renderChips();
 }
 // ── 籌碼整合頁（多空比例 → 三大法人 → 融資融券 → 槓桿風險）────
@@ -1294,8 +1289,8 @@ function renderChipsAll() {
         <circle cx="${gaugeCx}" cy="${gaugeCx}" r="${gaugeR}" fill="none" stroke="${rc}" stroke-width="8"
           stroke-dasharray="${gvRf.toFixed(1)} ${(gvRv-gvRf).toFixed(1)}"
           stroke-dashoffset="${(gvRv*.25).toFixed(1)}" stroke-linecap="round"/>
-        <text x="${gaugeCx}" y="${gaugeCx}" text-anchor="middle" dominant-baseline="central" font-size="20" font-weight="700" fill="${rc}" font-family="'DM Mono'">${rpLabel}</text>
-        <text x="${gaugeCx}" y="${gaugeCx+20}" text-anchor="middle" dominant-baseline="central" font-size="11" fill="var(--txt3)">${gaugeUnit}</text>
+        <text x="${gaugeCx}" y="${gaugeCx-8}" text-anchor="middle" dominant-baseline="central" font-size="20" font-weight="700" fill="${rc}" font-family="'DM Mono'">${rpLabel}</text>
+        <text x="${gaugeCx}" y="${gaugeCx+11}" text-anchor="middle" dominant-baseline="central" font-size="11" fill="var(--txt3)">${gaugeUnit}</text>
       </svg>
       <div style="flex:1">
         <div style="font-size:16px;font-weight:700;color:${rc}">${gaugeLabel}</div>
