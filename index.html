@@ -1225,7 +1225,10 @@ function renderInst(){
   let html=mkSubTabs(chipsMktLs)+`<div class="card f2"><div class="sec-t" style="margin-bottom:10px">${sectionTitle}</div>`;
   instRows.forEach(r=>{
     const col=r.up?'var(--up)':'var(--dn)';
-    html+=`<div class="inst-row"><div class="inst-ico">${r.ico}</div><div style="flex:1"><div class="inst-name">${r.name}</div><div class="inst-sub">${r.sub}</div></div><div style="text-align:right"><div class="inst-amt" style="color:${col}">${r.amt}</div><div class="inst-days">${r.days}</div></div></div>`;
+    // 台股加 NTD 貨幣標示；美股已含 USD
+    const currency = chipsMktLs==='tw' && r.amt!=='--' && r.amt.includes('億')
+      ? ' <span style="font-size:9px;font-weight:400;opacity:.6">NTD</span>' : '';
+    html+=`<div class="inst-row"><div class="inst-ico">${r.ico}</div><div style="flex:1"><div class="inst-name">${r.name}</div><div class="inst-sub">${r.sub}</div></div><div style="text-align:right"><div class="inst-amt" style="color:${col}">${r.amt}${currency}</div><div class="inst-days">${r.days}</div></div></div>`;
   });
   html+=`</div>`;
   // 台股：TWSE 提供近10日外資買賣超（逗號分隔），缺則隱藏圖表
