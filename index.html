@@ -758,12 +758,11 @@ const SENT_TW={
     {l:'20日動量',     v:50,max:100,col:'linear-gradient(90deg,#f05060,#f0c040,#5b9cf6)',zone:['趨弱','趨強'],signal:'載入中…'},
   ],
   macro:[
-    {n:'台股上漲家數',  label:'今日上漲家數',        v:'--', avg:'', sig:'ok', sl:'載入中'},
-    {n:'台股下跌家數',  label:'今日下跌家數',        v:'--', avg:'', sig:'ok', sl:'載入中'},
-    {n:'台股漲停家數',  label:'今日漲停家數',        v:'--', avg:'', sig:'ok', sl:'載入中'},
-    {n:'台股跌停家數',  label:'今日跌停家數',        v:'--', avg:'', sig:'ok', sl:'載入中'},
-    {n:'台股平均殖利率',label:'全市場平均殖利率', v:'--', avg:'', sig:'ok', sl:'載入中'},
-    {n:'台積電 P/E',   label:'台積電 2330 P/E',  v:'--', avg:'', sig:'ok', sl:'載入中'},
+    {n:'台股平均殖利率', label:'全市場平均殖利率',    v:'--', avg:'', sig:'ok', sl:'載入中'},
+    {n:'台積電 P/E',    label:'台積電 2330 P/E',   v:'--', avg:'', sig:'ok', sl:'載入中'},
+    {n:'台股平均本益比', label:'全市場平均本益比',    v:'--', avg:'', sig:'ok', sl:'載入中'},
+    {n:'高殖利率家數',   label:'殖利率 ≥4% 家數',   v:'--', avg:'', sig:'ok', sl:'載入中'},
+    {n:'台股今日漲跌幅', label:'台股今日漲跌幅',      v:'--', avg:'', sig:'ok', sl:'載入中'},
   ]
 };
 const SENT_US={
@@ -1096,12 +1095,11 @@ function renderSentiment(mkt){
       {n:'美國失業率',    label:'美國失業率',         v:nmv('美國失業率'),    avg:'',        sig:'ok', sl:synced('美國失業率')},
       {n:'美國CPI年增率', label:'美國CPI年增率',      v:nmv('美國CPI年增率'), avg:'',        sig:'ok', sl:synced('美國CPI年增率')},
     ] : [
-      {n:'台股上漲家數',  label:'今日上漲家數',           v:nmv('台股上漲家數'),  avg:'', sig:'ok', sl:synced('台股上漲家數')},
-      {n:'台股下跌家數',  label:'今日下跌家數',           v:nmv('台股下跌家數'),  avg:'', sig:'ok', sl:synced('台股下跌家數')},
-      {n:'台股漲停家數',  label:'今日漲停家數',           v:nmv('台股漲停家數'),  avg:'', sig:'ok', sl:synced('台股漲停家數')},
-      {n:'台股跌停家數',  label:'今日跌停家數',           v:nmv('台股跌停家數'),  avg:'', sig:'ok', sl:synced('台股跌停家數')},
-      {n:'台股平均殖利率',label:'全市場平均殖利率', v:nmv('台股平均殖利率'), avg:'', sig:'ok', sl:synced('台股平均殖利率')},
-      {n:'台積電 P/E',   label:'台積電 2330 P/E',  v:nmv('台積電 P/E'),   avg:'', sig:'ok', sl:synced('台積電 P/E')},
+      {n:'台股平均殖利率', label:'全市場平均殖利率',    v:nmv('台股平均殖利率'), avg:'', sig:'ok', sl:synced('台股平均殖利率')},
+      {n:'台積電 P/E',    label:'台積電 2330 P/E',   v:nmv('台積電 P/E'),   avg:'', sig:'ok', sl:synced('台積電 P/E')},
+      {n:'台股平均本益比', label:'全市場平均本益比',    v:nmv('台股平均本益比'), avg:'', sig:'ok', sl:synced('台股平均本益比')},
+      {n:'高殖利率家數',   label:'殖利率 ≥4% 家數',   v:nmv('高殖利率家數'),   avg:'', sig:'ok', sl:synced('高殖利率家數')},
+      {n:'台股今日漲跌幅', label:'台股今日漲跌幅',      v:nmv('台股今日漲跌幅'), avg:'', sig:'ok', sl:synced('台股今日漲跌幅')},
     ];
   } else {
     const d0 = mkt==='tw' ? SENT_TW : SENT_US;
