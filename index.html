@@ -49,16 +49,16 @@ body{color:var(--txt);max-width:430px;margin:0 auto}
 #topbar{flex-shrink:0;height:52px;background:var(--bg);border-bottom:1px solid var(--bdr);display:flex;align-items:center;padding:0 14px;gap:10px;position:relative;z-index:30}
 .logo-wrap{display:flex;align-items:center;gap:9px;flex:1;cursor:pointer}
 .logo-text{display:flex;flex-direction:column;line-height:1.1}
-.logo-en{font-family:var(--display);font-size:20px;font-weight:700;color:var(--gold);letter-spacing:1px}
-.logo-zh{font-size:9px;color:var(--txt3);font-weight:500;letter-spacing:.08em;margin-top:1px}
-.tb-btn{width:34px;height:34px;border-radius:50%;border:1px solid var(--bdr2);background:var(--bg2);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:15px;color:var(--txt2);flex-shrink:0;transition:all .18s}
+.logo-en{font-family:var(--display);font-size:22px;font-weight:700;color:var(--gold);letter-spacing:1px}
+.logo-zh{font-size:10px;color:var(--txt3);font-weight:500;letter-spacing:.08em;margin-top:1px}
+.tb-btn{width:36px;height:36px;border-radius:50%;border:1px solid var(--bdr2);background:var(--bg2);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:16px;color:var(--txt2);flex-shrink:0;transition:all .18s}
 .tb-btn:active{transform:scale(.9);background:var(--bg3)}
 
 /* ── TICKER ── */
 #ticker{flex-shrink:0;height:28px;background:var(--bg2);border-bottom:1px solid var(--bdr);overflow:hidden;display:flex;align-items:center}
 .tk-inner{display:flex;white-space:nowrap;animation:tkS 32s linear infinite}
 .tk-inner:hover{animation-play-state:paused}
-.tk-item{display:inline-flex;align-items:center;gap:5px;padding:0 12px;font-family:var(--mono);font-size:10.5px;border-right:1px solid var(--bdr)}
+.tk-item{display:inline-flex;align-items:center;gap:5px;padding:0 12px;font-family:var(--mono);font-size:11.5px;border-right:1px solid var(--bdr)}
 .tk-n{color:var(--txt3)}.tk-v{color:var(--txt)}
 .tk-c.up{color:var(--up)}.tk-c.dn{color:var(--dn)}
 @keyframes tkS{to{transform:translateX(-50%)}}
@@ -73,101 +73,107 @@ body{color:var(--txt);max-width:430px;margin:0 auto}
 #nav{flex-shrink:0;height:calc(var(--nav) + var(--safe-b));background:var(--bg);border-top:1px solid var(--bdr);display:flex;align-items:flex-start;padding-top:2px;position:relative;z-index:30}
 .ni{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer;padding:7px 0;color:var(--txt3);transition:color .18s}
 .ni.on{color:var(--gold)}
-.ni-ico{font-size:19px;line-height:1;transition:transform .18s}
+.ni-ico{font-size:21px;line-height:1;transition:transform .18s}
 .ni.on .ni-ico{transform:scale(1.1)}
-.ni-lbl{font-size:9.5px;font-weight:500}
+.ni-lbl{font-size:10.5px;font-weight:500}
 .ni-dot{width:3px;height:3px;border-radius:50%;background:var(--gold);opacity:0;margin-top:1px}
 .ni.on .ni-dot{opacity:1}
 
 /* ── SHARED ── */
 .card{background:var(--card);border:1px solid var(--bdr);border-radius:14px;padding:13px 14px;margin-bottom:10px}
-.badge{display:inline-flex;align-items:center;font-size:9.5px;font-weight:700;padding:2px 7px;border-radius:20px;letter-spacing:.04em}
+.badge{display:inline-flex;align-items:center;font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:20px;letter-spacing:.04em}
 .b-semi{background:var(--bluebg);color:var(--blue)}
 .b-macro{background:var(--goldbg);color:var(--gold)}
 .b-report{background:var(--upbg);color:var(--up)}
 .b-us{background:var(--purple);color:var(--purpletxt)}
 .sec-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
-.sec-t{font-size:10px;font-weight:700;color:var(--txt3);letter-spacing:.08em;text-transform:uppercase}
-.sec-more{font-size:11px;color:var(--gold);font-weight:500;cursor:pointer}
+.sec-t{font-size:11px;font-weight:700;color:var(--txt3);letter-spacing:.08em;text-transform:uppercase}
+.sec-more{font-size:12px;color:var(--gold);font-weight:500;cursor:pointer}
 .divider{height:1px;background:var(--bdr);margin:10px 0}
 
 /* ── IDX PILLS ── */
 .idx-row{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:8px;scrollbar-width:none}
 .idx-row::-webkit-scrollbar{display:none}
 .idx{flex-shrink:0;padding:6px 10px;border-radius:10px;border:1px solid var(--bdr);background:var(--bg2)}
-.idx-n{font-size:8.5px;color:var(--txt3);font-weight:600;letter-spacing:.04em;margin-bottom:2px}
-.idx-v{font-family:var(--mono);font-size:13px;font-weight:500}
-.idx-c{font-family:var(--mono);font-size:9.5px;font-weight:600}
+.idx-n{font-size:9.5px;color:var(--txt3);font-weight:600;letter-spacing:.04em;margin-bottom:2px}
+.idx-v{font-family:var(--mono);font-size:14px;font-weight:500}
+.idx-c{font-family:var(--mono);font-size:10.5px;font-weight:600}
 .up{color:var(--up)}.dn{color:var(--dn)}
 
 /* ── NEWS ── */
 .news-item{padding:12px 0;border-bottom:1px solid var(--bdr)}
 .news-item:last-child{border-bottom:none}
 .news-top{display:flex;align-items:center;gap:6px;margin-bottom:6px}
-.news-time{font-size:9.5px;color:var(--txt3);font-family:var(--mono);margin-left:auto}
-.news-title{font-size:13.5px;font-weight:700;color:var(--txt);line-height:1.45;margin-bottom:5px}
-.news-body{font-size:11.5px;color:var(--txt2);line-height:1.68;margin-bottom:8px}
+.news-time{font-size:10.5px;color:var(--txt3);font-family:var(--mono);margin-left:auto}
+.news-title{font-size:14.5px;font-weight:700;color:var(--txt);line-height:1.45;margin-bottom:5px}
+.news-body{font-size:12.5px;color:var(--txt2);line-height:1.68;margin-bottom:8px}
 .ai-box{background:linear-gradient(135deg,var(--bluebg),rgba(0,0,0,0));border:1px solid rgba(91,156,246,.18);border-radius:10px;padding:8px 11px}
-.ai-hd{font-size:9.5px;font-weight:700;color:var(--blue);margin-bottom:3px;display:flex;align-items:center;gap:4px}
-.ai-txt{font-size:11px;color:var(--txt);line-height:1.65}
+.ai-hd{font-size:10.5px;font-weight:700;color:var(--blue);margin-bottom:3px;display:flex;align-items:center;gap:4px}
+.ai-txt{font-size:12px;color:var(--txt);line-height:1.65}
 
 /* ── AD ── */
+/* ── VOICE BROADCAST ── */
+.voice-btn{display:flex;align-items:center;gap:5px;background:var(--bg3);border:1px solid var(--bdr2);border-radius:20px;padding:5px 12px;font-size:11px;font-weight:600;color:var(--txt2);cursor:pointer;font-family:var(--font);transition:all .18s;white-space:nowrap}
+.voice-btn:active{transform:scale(.95)}
+.voice-btn.playing{background:var(--bluebg);border-color:var(--blue);color:var(--blue)}
+.voice-btn.playing::before{content:'⏹ ';font-size:11px}
+
 .ad-card{background:linear-gradient(120deg,var(--bg2),var(--bg3));border:1px solid var(--bdr);border-radius:14px;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;margin:2px 0 10px}
-.ad-tag{font-size:8.5px;color:var(--txt3);margin-bottom:2px}
-.ad-main{font-size:12px;font-weight:600;color:var(--txt)}
-.ad-sub{font-size:10px;color:var(--txt2);margin-top:1px}
-.ad-btn{font-size:10px;padding:5px 12px;border-radius:20px;background:var(--gold);color:#000;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0}
+.ad-tag{font-size:9.5px;color:var(--txt3);margin-bottom:2px}
+.ad-main{font-size:13px;font-weight:600;color:var(--txt)}
+.ad-sub{font-size:11px;color:var(--txt2);margin-top:1px}
+.ad-btn{font-size:11px;padding:5px 12px;border-radius:20px;background:var(--gold);color:#000;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0}
 
 /* ── SENTIMENT ── */
 .mkt-tabs{display:flex;gap:6px;margin-bottom:12px}
-.mkt-tab{flex:1;padding:7px 0;text-align:center;border-radius:10px;font-size:12px;font-weight:600;color:var(--txt3);cursor:pointer;border:1px solid var(--bdr);background:var(--bg2);transition:all .18s}
+.mkt-tab{flex:1;padding:7px 0;text-align:center;border-radius:10px;font-size:13px;font-weight:600;color:var(--txt3);cursor:pointer;border:1px solid var(--bdr);background:var(--bg2);transition:all .18s}
 .mkt-tab.on{background:#4db8ff;color:#fff;border-color:#4db8ff}
 .mkt-tab:active{transform:scale(.96)}
 .gauge-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
 .gauge-track{flex:1;height:8px;border-radius:4px;background:var(--bg3);overflow:hidden}
 .gauge-fill{height:8px;border-radius:4px}
-.gauge-val{font-family:var(--mono);font-size:12px;font-weight:600;min-width:38px;text-align:right}
-.gauge-zone{display:flex;justify-content:space-between;font-size:8px;color:var(--txt3);margin-top:2px;padding:0 1px}
+.gauge-val{font-family:var(--mono);font-size:13px;font-weight:600;min-width:38px;text-align:right}
+.gauge-zone{display:flex;justify-content:space-between;font-size:9px;color:var(--txt3);margin-top:2px;padding:0 1px}
 .pe-row{display:flex;align-items:center;padding:8px 0;border-bottom:1px solid var(--bdr)}
 .pe-row:last-child{border-bottom:none}
-.pe-name{flex:1;font-size:12px;font-weight:500;color:var(--txt)}
-.pe-val{font-family:var(--mono);font-size:13px;font-weight:500;min-width:52px;text-align:right}
-.pe-avg{font-size:9.5px;color:var(--txt3);min-width:52px;text-align:right}
-.pe-signal{font-size:9px;padding:2px 7px;border-radius:20px;font-weight:700;margin-left:6px;white-space:nowrap}
+.pe-name{flex:1;font-size:13px;font-weight:500;color:var(--txt)}
+.pe-val{font-family:var(--mono);font-size:14px;font-weight:500;min-width:52px;text-align:right}
+.pe-avg{font-size:10.5px;color:var(--txt3);min-width:52px;text-align:right}
+.pe-signal{font-size:10px;padding:2px 7px;border-radius:20px;font-weight:700;margin-left:6px;white-space:nowrap}
 .sig-hi{background:var(--upbg);color:var(--up)}.sig-ok{background:var(--goldbg);color:var(--gold)}.sig-lo{background:var(--bluebg);color:var(--blue)}
 
 /* ── CHIPS ── */
 .chips-tabs{display:flex;gap:6px;margin-bottom:12px}
-.chips-tab{flex:1;padding:7px 0;text-align:center;border-radius:10px;font-size:12px;font-weight:600;color:var(--txt3);cursor:pointer;border:1px solid var(--bdr);background:var(--bg2);transition:all .18s}
+.chips-tab{flex:1;padding:7px 0;text-align:center;border-radius:10px;font-size:13px;font-weight:600;color:var(--txt3);cursor:pointer;border:1px solid var(--bdr);background:var(--bg2);transition:all .18s}
 .chips-tab.on{background:#4db8ff;color:#fff;border-color:#4db8ff}
 .chips-tab:active{transform:scale(.96)}
 .inst-row{display:flex;align-items:center;padding:9px 0;border-bottom:1px solid var(--bdr)}
 .inst-row:last-child{border-bottom:none}
-.inst-ico{width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;margin-right:9px;background:var(--bg3)}
-.inst-name{flex:1;font-size:12px;font-weight:600;color:var(--txt)}
-.inst-sub{font-size:9px;color:var(--txt3);margin-top:1px}
-.inst-amt{font-family:var(--mono);font-size:13px;font-weight:600}
-.inst-days{font-size:9px;color:var(--txt3);margin-top:1px}
+.inst-ico{width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;margin-right:9px;background:var(--bg3)}
+.inst-name{flex:1;font-size:13px;font-weight:600;color:var(--txt)}
+.inst-sub{font-size:10px;color:var(--txt3);margin-top:1px}
+.inst-amt{font-family:var(--mono);font-size:14px;font-weight:600}
+.inst-days{font-size:10px;color:var(--txt3);margin-top:1px}
 .margin-row{display:flex;align-items:center;gap:8px;margin-bottom:8px}
-.margin-name{font-size:11px;color:var(--txt2);min-width:64px;font-weight:500}
+.margin-name{font-size:12px;color:var(--txt2);min-width:64px;font-weight:500}
 .margin-bar-w{flex:1;height:6px;background:var(--bg3);border-radius:3px;overflow:hidden}
 .margin-bar-f{height:6px;border-radius:3px}
-.margin-val{font-family:var(--mono);font-size:11px;font-weight:600;min-width:60px;text-align:right}
+.margin-val{font-family:var(--mono);font-size:12px;font-weight:600;min-width:60px;text-align:right}
 .ls-wrap{display:flex;gap:0;border-radius:10px;overflow:hidden;height:32px;margin-bottom:6px}
-.ls-long{display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#000;background:var(--up)}
-.ls-short{display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;background:var(--dn)}
-.ls-label{display:flex;justify-content:space-between;font-size:9.5px;color:var(--txt3);margin-bottom:8px}
+.ls-long{display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#000;background:var(--up)}
+.ls-short{display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff;background:var(--dn)}
+.ls-label{display:flex;justify-content:space-between;font-size:10.5px;color:var(--txt3);margin-bottom:8px}
 .sc-row{display:flex;align-items:center;padding:8px 0;border-bottom:1px solid var(--bdr);gap:8px}
 .sc-row:last-child{border-bottom:none}
-.sc-name{min-width:56px;font-size:11px;font-weight:600;color:var(--txt);font-family:var(--mono)}
+.sc-name{min-width:56px;font-size:12px;font-weight:600;color:var(--txt);font-family:var(--mono)}
 .sc-bars{flex:1;display:flex;flex-direction:column;gap:3px}
 .sc-bar-row{display:flex;align-items:center;gap:4px}
-.sc-bar-lbl{font-size:8.5px;color:var(--txt3);min-width:24px}
+.sc-bar-lbl{font-size:9.5px;color:var(--txt3);min-width:24px}
 .sc-bar-w{flex:1;height:4px;background:var(--bg3);border-radius:2px;overflow:hidden}
 .sc-bar-f{height:4px;border-radius:2px}
 .sc-total{text-align:right;min-width:50px}
-.sc-val{font-family:var(--mono);font-size:11px;font-weight:600}
-.sc-days{font-size:8.5px;color:var(--txt3)}
+.sc-val{font-family:var(--mono);font-size:12px;font-weight:600}
+.sc-days{font-size:9.5px;color:var(--txt3)}
 
 /* ── AI CHAT ── */
 #pg-ai{overflow:hidden;display:flex;flex-direction:column}
@@ -177,7 +183,7 @@ body{color:var(--txt);max-width:430px;margin:0 auto}
 .msg-row.user{flex-direction:row-reverse}
 @keyframes msgIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 .msg-av{width:28px;height:28px;border-radius:50%;background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;border:1px solid var(--bdr)}
-.bubble{max-width:82%;padding:9px 12px;border-radius:14px;font-size:12.5px;line-height:1.65}
+.bubble{max-width:82%;padding:9px 12px;border-radius:14px;font-size:13.5px;line-height:1.65}
 .msg-row.ai .bubble{background:var(--bg2);color:var(--txt);border-radius:4px 14px 14px 14px;border:1px solid var(--bdr)}
 .msg-row.user .bubble{background:linear-gradient(135deg,#1a2a6c,#3a5bbf);color:#e8eeff;border-radius:14px 4px 14px 14px}
 .bubble strong{color:var(--gold)}
@@ -186,10 +192,10 @@ body{color:var(--txt);max-width:430px;margin:0 auto}
 .ld:nth-child(2){animation-delay:.2s}.ld:nth-child(3){animation-delay:.4s}
 @keyframes ldot{0%,80%,100%{transform:scale(.75);opacity:.35}40%{transform:scale(1);opacity:1}}
 .qpills{display:flex;flex-wrap:wrap;gap:5px;padding:6px 14px 2px}
-.qpill{padding:5px 12px;border-radius:20px;border:1px solid var(--bdr2);background:var(--bg2);color:var(--txt);font-size:11px;cursor:pointer;transition:all .16s;font-weight:500}
+.qpill{padding:5px 12px;border-radius:20px;border:1px solid var(--bdr2);background:var(--bg2);color:var(--txt);font-size:12px;cursor:pointer;transition:all .16s;font-weight:500}
 .qpill:active{background:var(--bg3);transform:scale(.96)}
 .chat-bar{display:flex;gap:8px;padding:10px 14px;border-top:1px solid var(--bdr);background:var(--bg);flex-shrink:0;padding-bottom:max(10px,var(--safe-b))}
-#ci{flex:1;background:var(--bg2);border:1px solid var(--bdr2);border-radius:24px;padding:9px 15px;font-size:13px;color:var(--txt);outline:none;font-family:var(--font);transition:border-color .2s}
+#ci{flex:1;background:var(--bg2);border:1px solid var(--bdr2);border-radius:24px;padding:9px 15px;font-size:14px;color:var(--txt);outline:none;font-family:var(--font);transition:border-color .2s}
 #ci:focus{border-color:rgba(240,192,64,.4)}
 #ci::placeholder{color:var(--txt3)}
 #sbtn{width:38px;height:38px;border-radius:50%;background:#ffffff;border:1px solid rgba(255,255,255,.3);color:#07091a;font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:transform .15s,opacity .15s;flex-shrink:0}
@@ -199,15 +205,15 @@ body{color:var(--txt);max-width:430px;margin:0 auto}
 /* ── SETTINGS ── */
 .setting-row{display:flex;align-items:center;justify-content:space-between;padding:13px 0;border-bottom:1px solid var(--bdr)}
 .setting-row:last-child{border-bottom:none}
-.s-lbl{font-size:13px;color:var(--txt);font-weight:500}
-.s-sub{font-size:10px;color:var(--txt3);margin-top:1px}
+.s-lbl{font-size:14px;color:var(--txt);font-weight:500}
+.s-sub{font-size:11px;color:var(--txt3);margin-top:1px}
 .toggle{width:42px;height:24px;border-radius:12px;background:var(--bg3);border:1px solid var(--bdr2);position:relative;cursor:pointer;transition:background .22s;flex-shrink:0}
 .toggle.on{background:#4db8ff}
 .toggle-k{width:18px;height:18px;border-radius:50%;background:#fff;position:absolute;top:2px;left:2px;transition:transform .22s;box-shadow:0 1px 4px rgba(0,0,0,.4)}
 .toggle.on .toggle-k{transform:translateX(18px)}
 /* Color mode toggle — two-option pill */
 .color-switch{display:flex;background:var(--bg3);border-radius:20px;padding:3px;border:1px solid var(--bdr);gap:2px}
-.color-opt{flex:1;padding:4px 0;text-align:center;border-radius:18px;font-size:10px;font-weight:700;cursor:pointer;transition:all .2s;color:var(--txt3)}
+.color-opt{flex:1;padding:4px 0;text-align:center;border-radius:18px;font-size:11px;font-weight:700;cursor:pointer;transition:all .2s;color:var(--txt3)}
 .color-opt.on{background:#4db8ff;color:#fff}
 
 /* ── SPLASH ── */
@@ -237,12 +243,12 @@ body{color:var(--txt);max-width:430px;margin:0 auto}
 .ai-paywall{position:relative;border-radius:10px;overflow:hidden}
 .ai-paywall-blur{filter:blur(5px);pointer-events:none;user-select:none;max-height:72px;overflow:hidden}
 .ai-paywall-overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;background:rgba(0,0,0,.18);backdrop-filter:blur(1px)}
-.ai-lock-btn{display:flex;align-items:center;gap:5px;background:var(--gold);color:#111;border:none;border-radius:20px;padding:6px 14px;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit;box-shadow:0 2px 8px rgba(0,0,0,.25)}
+.ai-lock-btn{display:flex;align-items:center;gap:5px;background:var(--gold);color:#111;border:none;border-radius:20px;padding:6px 14px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;box-shadow:0 2px 8px rgba(0,0,0,.25)}
 .ai-lock-btn:active{opacity:.85}
-.ai-lock-hint{font-size:9.5px;color:rgba(255,255,255,.75)}
+.ai-lock-hint{font-size:10.5px;color:rgba(255,255,255,.75)}
 /* ── Q&A 廣告提示 ── */
 .qa-gate{text-align:center;padding:16px 12px;background:var(--bg2);border-radius:12px;margin:8px 0}
-.qa-gate-btn{display:inline-flex;align-items:center;gap:5px;background:var(--gold);color:#111;border:none;border-radius:20px;padding:7px 18px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;margin-top:8px}
+.qa-gate-btn{display:inline-flex;align-items:center;gap:5px;background:var(--gold);color:#111;border:none;border-radius:20px;padding:7px 18px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;margin-top:8px}
 </style>
 </head>
 <body data-updown="tw">
@@ -292,7 +298,13 @@ body{color:var(--txt);max-width:430px;margin:0 auto}
     </div>
     <div id="mkt-summary" style="font-size:12.5px;color:var(--txt2);line-height:1.75"></div>
   </div>
-  <div class="card f3" style="padding:4px 14px 4px" id="news-feed"></div>
+  <div class="card f3" style="padding:4px 14px 4px">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0 4px">
+      <span class="sec-t">快報列表</span>
+      <button id="voice-btn" class="voice-btn" onclick="toggleVoice()" title="語音播報">🔊 語音播報</button>
+    </div>
+    <div id="news-feed"></div>
+  </div>
   <div class="ad-card f4">
     <div><div class="ad-tag">廣告招募中</div><div class="ad-main">您的品牌 × 速懶報</div><div class="ad-sub">精準觸及台股投資族群 · 歡迎洽談合作</div></div>
     <div class="ad-btn" onclick="window.location='mailto:pinyi.twn@gmail.com?subject=速懶報廣告合作洽詢&body=您好，我想了解速懶報的廣告合作方案，請提供貴平台的用戶規模、廣告版位及報價，謝謝。'">合作洽詢 ✉️</div>
@@ -753,8 +765,8 @@ const SENT_TW={
     {n:'台股下跌家數',  label:'今日下跌家數',        v:'--', avg:'', sig:'ok', sl:'載入中'},
     {n:'台股漲停家數',  label:'今日漲停家數',        v:'--', avg:'', sig:'ok', sl:'載入中'},
     {n:'台股跌停家數',  label:'今日跌停家數',        v:'--', avg:'', sig:'ok', sl:'載入中'},
-    {n:'台股平均殖利率',label:'全市場平均殖利率（TWSE）', v:'--', avg:'', sig:'ok', sl:'載入中'},
-    {n:'台積電 P/E',   label:'台積電 2330 P/E（TWSE）',  v:'--', avg:'', sig:'ok', sl:'載入中'},
+    {n:'台股平均殖利率',label:'全市場平均殖利率', v:'--', avg:'', sig:'ok', sl:'載入中'},
+    {n:'台積電 P/E',   label:'台積電 2330 P/E',  v:'--', avg:'', sig:'ok', sl:'載入中'},
   ]
 };
 const SENT_US={
@@ -775,10 +787,10 @@ const SENT_US={
 };
 // 三大法人 fallback（TWSE API 尚未回傳時顯示）
 const CHIPS_INST=[
-  {ico:'🏦',name:'外資',        sub:'FINI・資料來源：台灣證交所 TWSE',    amt:'--',up:null,days:'TWSE 載入中',pct:50},
-  {ico:'🏛️',name:'投信',        sub:'本土投信・台灣證交所 TWSE',          amt:'--',up:null,days:'TWSE 載入中',pct:50},
-  {ico:'🏢',name:'自營商',      sub:'券商自有資金・台灣證交所 TWSE',      amt:'--',up:null,days:'TWSE 載入中',pct:50},
-  {ico:'📊',name:'三大法人合計',sub:'📋 每日收盤後由 TWSE API 自動更新', amt:'--',up:null,days:'TWSE 載入中',pct:50},
+  {ico:'🏦',name:'外資',        sub:'FINI・資料來源：台灣證交所',    amt:'--',up:null,days:'載入中',pct:50},
+  {ico:'🏛️',name:'投信',        sub:'本土投信・台灣證交所',          amt:'--',up:null,days:'載入中',pct:50},
+  {ico:'🏢',name:'自營商',      sub:'券商自有資金・台灣證交所',      amt:'--',up:null,days:'載入中',pct:50},
+  {ico:'📊',name:'三大法人合計',sub:'📋 每日收盤後自動更新', amt:'--',up:null,days:'載入中',pct:50},
 ];
 // 融資融券：從 notionMonitor 取得，fallback 顯示 --
 function getMarginData(mkt) {
@@ -854,10 +866,10 @@ window.addEventListener('DOMContentLoaded', () => {
     try {
       await Promise.all([
         // 股價
-        fetchAllPrices().then(() => { updateTicker(); updateIndices(); updateMarketSummary(); }),
+        fetchAllPrices().then(() => { updateTicker(); updateIndices(); }),
         // Notion AI + Monitor（先填充，減少空白等待）
         Promise.all([fetchNotionAI(), fetchNotionMonitor()])
-          .then(() => { renderSentiment(sentMkt); renderChips(); }),
+          .then(() => { renderSentiment(sentMkt); renderChips(); updateMarketSummary(); }),
       ]);
     } catch(e) { console.log('[QN] 初始化錯誤:', e.message); }
 
@@ -889,7 +901,7 @@ window.addEventListener('DOMContentLoaded', () => {
     try {
       await fetchAllPrices();
       liveSent = await fetchSentimentData();
-      updateTicker(); updateIndices(); updateMarketSummary();
+      updateTicker(); updateIndices();
       renderSentiment(sentMkt); renderChips();
     } catch(e) {}
     document.getElementById('today-date').textContent = nowDateStr() + '　' + nowTime() + ' 更新';
@@ -903,7 +915,7 @@ window.addEventListener('DOMContentLoaded', () => {
     } catch(e) {}
     try {
       await Promise.all([fetchNotionAI(), fetchNotionMonitor()]);
-      renderSentiment(sentMkt); renderChips();
+      renderSentiment(sentMkt); renderChips(); updateMarketSummary();
     } catch(e) {}
   }, 600000);
 
@@ -921,7 +933,7 @@ function nowDateStr(){ const d=new Date(),days=['日','一','二','三','四','�
 function initDate(){
   document.getElementById('today-date').textContent = nowDateStr();
   document.getElementById('mkt-summary').innerHTML =
-    `<span style="color:var(--txt3)">⏳ 正在載入即時市場資訊…</span>`;
+    `<span style="color:var(--txt3)">⏳ 正在載入 AI 市場分析…</span>`;
 }
 
 // ── 更新跑馬燈（真實資料） ────────────────────────────────────
@@ -964,18 +976,23 @@ function updateIndices(){
   }).join('');
 }
 
-// ── 更新市場摘要（真實資料） ──────────────────────────────────
+// ── 更新 AI 市場摘要（AI 解讀新聞摘要，非即時股價）──────────────
 function updateMarketSummary(){
-  const tsmc = liveData['2330.TW'] || FALLBACK_PRICES['2330.TW'];
-  const twii = liveData['^TWII']   || FALLBACK_PRICES['^TWII'];
-  const vix  = liveData['^VIX']    || FALLBACK_PRICES['^VIX'];
-  const tsmcUp = tsmc.ch >= 0;
-  const twiiUp = twii.ch >= 0;
-  document.getElementById('mkt-summary').innerHTML =
-    `台積電 <strong style="color:var(--${tsmcUp?'up':'dn'})">${tsmcUp?'+':''}${tsmc.ch.toFixed(2)}%（${fmtPrice(tsmc.p,'2330.TW')}）</strong>，
-     加權 <strong style="color:var(--${twiiUp?'up':'dn'})">${twiiUp?'+':''}${twii.ch.toFixed(2)}%</strong>，
-     VIX <strong style="color:var(--gold)">${vix.p.toFixed(1)}</strong>。
-     <span style="color:var(--txt3);font-size:10px">⚡ 即時資料　${nowTime()} 更新</span>`;
+  const twSent = notionAI['台股市場情緒']?.content;
+  const usSent = notionAI['美股市場情緒']?.content;
+  const updAt  = notionAI['台股市場情緒']?.updatedAt || notionAI['美股市場情緒']?.updatedAt || '';
+  const el = document.getElementById('mkt-summary');
+  if (!twSent && !usSent) {
+    // 尚未載入時保持 loading 狀態，不覆蓋
+    return;
+  }
+  const parts = [];
+  if (twSent) parts.push(`<span style="color:var(--gold);font-weight:700;font-size:11px">🇹🇼 台股</span> ${twSent}`);
+  if (usSent) parts.push(`<span style="color:var(--blue);font-weight:700;font-size:11px">🇺🇸 美股</span> ${usSent}`);
+  el.innerHTML = `<div style="display:flex;flex-direction:column;gap:10px">
+    ${parts.map(p=>`<div style="line-height:1.7">${p}</div>`).join('')}
+    ${updAt ? `<div style="font-size:10px;color:var(--txt3)">🤖 AI 解讀　${updAt} 更新</div>` : ''}
+  </div>`;
 }
 
 // ── 渲染新聞 Feed ─────────────────────────────────────────────
@@ -989,6 +1006,62 @@ function renderNewsFeed(items){
       ${n.ai ? `<div class="ai-box"><div class="ai-hd">🤖 AI 解讀</div><div class="ai-txt">${n.ai}</div></div>` : ''}
       ${n.url ? `<div style="font-size:9.5px;color:var(--blue);margin-top:4px;text-align:right">閱讀完整報導 →</div>` : ''}
     </div>`).join('');
+}
+
+// ── VOICE BROADCAST（Web Speech API TTS）────────────────────────
+let voiceSynth = window.speechSynthesis;
+let voiceUtterance = null;
+let voicePlaying = false;
+
+function buildBroadcastScript(){
+  const lines = [];
+  // AI 市場摘要
+  const twSent = notionAI['台股市場情緒']?.content;
+  const usSent = notionAI['美股市場情緒']?.content;
+  lines.push('速懶報 AI 廣播，今日市場快報。');
+  if (twSent) lines.push('台股市場：' + twSent);
+  if (usSent) lines.push('美股市場：' + usSent);
+  // 新聞標題
+  const feed = document.querySelectorAll('#news-feed .news-title');
+  if (feed.length) {
+    lines.push('今日快報頭條：');
+    feed.forEach((el, i) => { if (i < 6) lines.push(`第${['一','二','三','四','五','六'][i]}則：${el.textContent.trim()}`); });
+  }
+  lines.push('以上為今日速懶報快訊播報。');
+  return lines.join('　');
+}
+
+function toggleVoice(){
+  const btn = document.getElementById('voice-btn');
+  if (!voiceSynth) { alert('您的瀏覽器不支援語音播報功能。'); return; }
+  if (voicePlaying) {
+    voiceSynth.cancel();
+    voicePlaying = false;
+    btn.classList.remove('playing');
+    btn.textContent = '🔊 語音播報';
+    return;
+  }
+  const script = buildBroadcastScript();
+  voiceUtterance = new SpeechSynthesisUtterance(script);
+  voiceUtterance.lang = 'zh-TW';
+  voiceUtterance.rate = 0.95;
+  voiceUtterance.pitch = 1.0;
+  // 優先選擇繁體中文語音
+  const voices = voiceSynth.getVoices();
+  const twVoice = voices.find(v => v.lang === 'zh-TW') || voices.find(v => v.lang.startsWith('zh'));
+  if (twVoice) voiceUtterance.voice = twVoice;
+  voiceUtterance.onend = () => {
+    voicePlaying = false;
+    if (btn) { btn.classList.remove('playing'); btn.textContent = '🔊 語音播報'; }
+  };
+  voiceUtterance.onerror = () => {
+    voicePlaying = false;
+    if (btn) { btn.classList.remove('playing'); btn.textContent = '🔊 語音播報'; }
+  };
+  voiceSynth.speak(voiceUtterance);
+  voicePlaying = true;
+  btn.classList.add('playing');
+  btn.textContent = '停止播報';
 }
 
 // ── SENTIMENT ────────────────────────────────────────────────────
@@ -1040,8 +1113,8 @@ function renderSentiment(mkt){
       {n:'台股下跌家數',  label:'今日下跌家數',           v:nmv('台股下跌家數'),  avg:'', sig:'ok', sl:synced('台股下跌家數')},
       {n:'台股漲停家數',  label:'今日漲停家數',           v:nmv('台股漲停家數'),  avg:'', sig:'ok', sl:synced('台股漲停家數')},
       {n:'台股跌停家數',  label:'今日跌停家數',           v:nmv('台股跌停家數'),  avg:'', sig:'ok', sl:synced('台股跌停家數')},
-      {n:'台股平均殖利率',label:'全市場平均殖利率（TWSE）', v:nmv('台股平均殖利率'), avg:'', sig:'ok', sl:synced('台股平均殖利率')},
-      {n:'台積電 P/E',   label:'台積電 2330 P/E（TWSE）',  v:nmv('台積電 P/E'),   avg:'', sig:'ok', sl:synced('台積電 P/E')},
+      {n:'台股平均殖利率',label:'全市場平均殖利率', v:nmv('台股平均殖利率'), avg:'', sig:'ok', sl:synced('台股平均殖利率')},
+      {n:'台積電 P/E',   label:'台積電 2330 P/E',  v:nmv('台積電 P/E'),   avg:'', sig:'ok', sl:synced('台積電 P/E')},
     ];
   } else {
     const d0 = mkt==='tw' ? SENT_TW : SENT_US;
@@ -1066,20 +1139,20 @@ function renderSentiment(mkt){
           <circle cx="44" cy="44" r="32" fill="none" stroke="${fgCol}" stroke-width="8"
             stroke-dasharray="${filled.toFixed(1)} ${(r-filled).toFixed(1)}"
             stroke-dashoffset="${(r*0.25).toFixed(1)}" stroke-linecap="round" opacity=".9"/>
-          <text x="44" y="40" text-anchor="middle" font-size="22" font-weight="700" fill="${fgCol}" font-family="'DM Mono'">${fgVal}</text>
-          <text x="44" y="55" text-anchor="middle" font-size="10" fill="var(--txt3)" font-family="'Noto Sans TC'">${fgLabel}</text>
+          <text x="44" y="40" text-anchor="middle" font-size="24" font-weight="700" fill="${fgCol}" font-family="'DM Mono'">${fgVal}</text>
+          <text x="44" y="56" text-anchor="middle" font-size="11" fill="var(--txt3)" font-family="'Noto Sans TC'">${fgLabel}</text>
         </svg>
       </div>
       <div style="flex:1">
-        <div style="font-size:18px;font-weight:700;color:${fgCol};font-family:var(--mono)">${fgVal} — ${fgLabel}</div>
-        <div style="font-size:11px;font-weight:600;color:var(--gold);margin-top:6px">🤖 AI 情緒解讀</div>
-        ${isAIUnlocked()
-          ? `<div style="font-size:11px;color:var(--txt2);margin-top:4px;line-height:1.7">${fgAI}</div>`
+        <div style="font-size:20px;font-weight:700;color:${fgCol};font-family:var(--mono)">${fgVal} — ${fgLabel}</div>
+        <div style="font-size:12px;font-weight:600;color:var(--gold);margin-top:6px">🤖 AI 情緒解讀</div>
+        ${isAIUnlocked('sent-fg')
+          ? `<div style="font-size:12px;color:var(--txt2);margin-top:4px;line-height:1.7">${fgAI}</div>`
           : `<div class="ai-paywall" style="margin-top:4px">
-              <div class="ai-paywall-blur"><div style="font-size:11px;color:var(--txt2);line-height:1.7">${fgAI}</div></div>
+              <div class="ai-paywall-blur"><div style="font-size:12px;color:var(--txt2);line-height:1.7">${fgAI}</div></div>
               <div class="ai-paywall-overlay">
-                <button class="ai-lock-btn" onclick="watchAd(function(){setAIUnlocked();renderSentiment(sentMkt);})">▶ 看廣告，解鎖完整 AI 分析</button>
-                <span class="ai-lock-hint">免費觀看 · 解鎖 24 小時</span>
+                <button class="ai-lock-btn" onclick="watchAd('sent-fg',function(){renderSentiment(sentMkt);})">▶ 看廣告，解鎖完整 AI 分析</button>
+                <span class="ai-lock-hint">免費觀看 · 解鎖此區塊</span>
               </div>
             </div>`
         }
@@ -1091,7 +1164,7 @@ function renderSentiment(mkt){
     const pct=Math.min(100,g.v/g.max*100);
     const col=pct>66?'var(--up)':pct>33?'var(--gold)':'var(--dn)';
     html+=`<div class="gauge-row">
-      <div style="min-width:88px"><div style="font-size:10.5px;font-weight:600;color:var(--txt)">${g.l}</div><div style="font-size:8.5px;color:var(--txt3);margin-top:1px">${g.signal}</div></div>
+      <div style="min-width:88px"><div style="font-size:11.5px;font-weight:600;color:var(--txt)">${g.l}</div><div style="font-size:9.5px;color:var(--txt3);margin-top:1px">${g.signal}</div></div>
       <div style="flex:1">
         <div class="gauge-track"><div class="gauge-fill" style="width:${pct}%;background:${g.col}"></div></div>
         <div class="gauge-zone"><span>${g.zone[0]}</span><span>${g.zone[1]}</span></div>
@@ -1101,7 +1174,7 @@ function renderSentiment(mkt){
   });
   html+=`</div>`;
   if (macro && macro.length > 0) {
-    const sectionLabel = mkt === 'tw' ? '市場廣度（TWSE）' : '總經指標（FRED）';
+    const sectionLabel = mkt === 'tw' ? '市場廣度' : '總經指標（FRED）';
     html+=`<div class="card f5"><div class="sec-t" style="margin-bottom:10px">${sectionLabel}</div>`;
     macro.forEach(p=>{
       const vCol = p.v !== '--' ? 'var(--txt)' : 'var(--txt3)';
@@ -1172,7 +1245,7 @@ function renderChipsAll() {
   // ── Section 2: 三大法人 ──
   let instRows, sectionTitle, tag;
   if (isTW) {
-    tag = liveInst ? '<span style="font-size:9px;color:var(--blue)">⚡ 即時</span>' : '<span style="font-size:9px;color:var(--txt3)">(TWSE 更新中)</span>';
+    tag = liveInst ? '<span style="font-size:9px;color:var(--blue)">⚡ 即時</span>' : '<span style="font-size:9px;color:var(--txt3)">(更新中)</span>';
     sectionTitle = '三大法人買賣超 ' + tag;
     instRows = liveInst ? [
       {ico:'🏦',name:'外資',        sub:'FINI・證交所即時',   amt:liveInst.foreign, up:liveInst.foreignUp, days:liveInst.foreignUp?'今日買超':'今日賣超'},
@@ -1216,10 +1289,10 @@ function renderChipsAll() {
   const gvRv = 2 * Math.PI * gaugeR, gvRf = gvRv * rp / 100;
   const gaugeUnit = isTW ? '使用率%' : 'VIX';
   const gaugeLabel = isTW
-    ? (rpRaw != null ? (rp >= 70 ? '⚠️ 高風險' : rp >= 50 ? '中等風險' : '低風險') : 'TWSE 更新中')
+    ? (rpRaw != null ? (rp >= 70 ? '⚠️ 高風險' : rp >= 50 ? '中等風險' : '低風險') : '更新中')
     : (vixCur > 25 ? '⚠️ 高波動' : vixCur < 15 ? '低波動' : '正常波動');
   const riskDesc = isTW
-    ? (rpRaw != null ? `台股融資使用率 ${rpLabel}%${rp>=75?'，已達高風險水位，建議控管槓桿。':rp>=60?'，處中高水位，留意槓桿風險。':'，目前尚在合理範圍。'}` : '融資使用率資料每日收盤後由 TWSE API 自動更新。')
+    ? (rpRaw != null ? `台股融資使用率 ${rpLabel}%${rp>=75?'，已達高風險水位，建議控管槓桿。':rp>=60?'，處中高水位，留意槓桿風險。':'，目前尚在合理範圍。'}` : '融資使用率資料每日收盤後自動更新。')
     : `VIX ${vixCur.toFixed(1)}，${vixCur>25?'波動偏高，市場謹慎。':vixCur<15?'波動偏低，市場樂觀。':'波動正常。'}`;
 
   html += `<div class="card f5"><div class="sec-t" style="margin-bottom:10px">槓桿風險儀表</div>
@@ -1242,7 +1315,7 @@ function renderChipsAll() {
   // ── AI 整合解讀（台股/美股各一次，涵蓋所有籌碼資訊）──
   const aiData = notionAI[isTW ? '台股籌碼' : '美股籌碼'];
   const aiTxt = aiData?.content || (isTW ? '台股籌碼整合資料載入中…' : '美股籌碼整合資料載入中…');
-  html += renderAICard({hd: `🤖 AI ${isTW?'台股':'美股'}籌碼整合解讀`, text: aiTxt});
+  html += renderAICard({hd: `🤖 AI ${isTW?'台股':'美股'}籌碼整合解讀`, text: aiTxt, blockId: isTW?'tw-chip':'us-chip'});
 
   document.getElementById('chips-content').innerHTML = html;
 }
@@ -1266,26 +1339,29 @@ function setUpDown(mode){
   renderChips();
 }
 
-// ── AI PAYWALL ───────────────────────────────────────────────────
-// AI 解讀：一次觀看廣告，解鎖 24 小時
-function isAIUnlocked(){
-  const exp = parseInt(localStorage.getItem('qn_ai_unlocked') || '0');
+// ── AI PAYWALL（每個區塊獨立解鎖）──────────────────────────────
+// blockId: 唯一識別符，每個 AI 卡片有自己的 localStorage key
+function isAIUnlocked(blockId){
+  const exp = parseInt(localStorage.getItem('qn_ai_unlock_' + blockId) || '0');
   return Date.now() < exp;
 }
-function setAIUnlocked(){
-  localStorage.setItem('qn_ai_unlocked', String(Date.now() + 86400000)); // 24h
+function setAIUnlocked(blockId){
+  localStorage.setItem('qn_ai_unlock_' + blockId, String(Date.now() + 86400000)); // 24h
 }
 // 廣告模擬（未來接入真實廣告 SDK 時替換此函式）
-function watchAd(callback){
+// blockId: 解鎖哪個區塊；callback: 解鎖後執行的 re-render
+function watchAd(blockId, callback){
   // TODO: 替換為真實廣告 SDK 呼叫（如 Google AdMob / AdSense）
-  const ok = window.confirm('即將觀看一則廣告（模擬）\n\n點「確定」繼續，廣告結束後解鎖 AI 解讀。');
-  if(ok){ setTimeout(callback, 500); }
+  const ok = window.confirm('即將觀看一則廣告（模擬）\n\n點「確定」繼續，廣告結束後解鎖此區塊 AI 解讀。');
+  if(ok){ setTimeout(function(){ setAIUnlocked(blockId); if(callback) callback(); }, 500); }
 }
 // 渲染 AI 解讀卡片：未解鎖時模糊遮蓋（標題保持可見）；解鎖後直接顯示
+// blockId: 每個卡片的唯一識別符（eg. 'tw-chip', 'us-sent', 'sent-fg'）
 function renderAICard(opts){
-  const {hd, text, id} = opts;
-  const textEl = `<div class="ai-txt" style="font-size:11.5px"${id?` id="${id}"`:''}>${text}</div>`;
-  if(isAIUnlocked()){
+  const {hd, text, id, blockId} = opts;
+  const bid = blockId || id || 'default';
+  const textEl = `<div class="ai-txt" style="font-size:12.5px"${id?` id="${id}"`:''}>${text}</div>`;
+  if(isAIUnlocked(bid)){
     return `<div class="card" style="background:var(--goldbg);border-color:rgba(240,192,64,.2)"><div class="ai-hd">${hd}</div>${textEl}</div>`;
   }
   return `<div class="card" style="background:var(--goldbg);border-color:rgba(240,192,64,.2)">
@@ -1293,8 +1369,8 @@ function renderAICard(opts){
     <div class="ai-paywall">
       <div class="ai-paywall-blur">${textEl}</div>
       <div class="ai-paywall-overlay">
-        <button class="ai-lock-btn" onclick="watchAd(function(){setAIUnlocked();renderSentiment(sentMkt);renderChips();})">▶ 看廣告，解鎖完整 AI 分析</button>
-        <span class="ai-lock-hint">免費觀看 · 解鎖 24 小時</span>
+        <button class="ai-lock-btn" onclick="watchAd('${bid}',function(){renderSentiment(sentMkt);renderChips();})">▶ 看廣告，解鎖此 AI 分析</button>
+        <span class="ai-lock-hint">每個區塊獨立解鎖 · 24 小時有效</span>
       </div>
     </div>
   </div>`;
@@ -1327,7 +1403,7 @@ function showQAGate(){
   gate.className = 'qa-gate'; gate.id = 'qa-gate-msg';
   gate.innerHTML = `<div style="font-size:12px;color:var(--txt2)">免費問答次數已用完</div>
     <div style="font-size:10px;color:var(--txt3);margin-top:4px">觀看廣告即可再獲得 3 次問答機會</div>
-    <button class="qa-gate-btn" onclick="watchAd(function(){unlockQABonus();document.getElementById('qa-gate-msg')?.remove();document.getElementById('ci').focus();})">▶ 觀看廣告解鎖 3 次問答</button>`;
+    <button class="qa-gate-btn" onclick="watchAd('qa-bonus',function(){unlockQABonus();document.getElementById('qa-gate-msg')?.remove();document.getElementById('ci').focus();})">▶ 觀看廣告解鎖 3 次問答</button>`;
   chat.appendChild(gate);
   setTimeout(() => chat.scrollTop = chat.scrollHeight, 50);
 }
