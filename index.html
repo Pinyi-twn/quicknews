@@ -324,11 +324,6 @@ body{color:var(--txt);max-width:430px;margin:0 auto}
 <div class="page" id="pg-chart">
 <div class="pg">
   <div class="sec-hd f1"><div class="sec-t">籌碼分析</div><span style="font-size:9.5px;color:var(--txt3);font-family:var(--mono)" id="chips-time"></span></div>
-  <div class="chips-tabs f2">
-    <div class="chips-tab on" onclick="chipsTab(this,'inst')">三大法人</div>
-    <div class="chips-tab" onclick="chipsTab(this,'margin')">融資融券</div>
-    <div class="chips-tab" onclick="chipsTab(this,'ls')">多空籌碼</div>
-  </div>
   <div id="chips-content"></div>
 </div>
 </div>
@@ -355,14 +350,6 @@ body{color:var(--txt);max-width:430px;margin:0 auto}
     <div class="setting-row">
       <div><div class="s-lbl">早報推播通知</div><div class="s-sub">每日 07:30 推送</div></div>
       <div class="toggle on" onclick="this.classList.toggle('on')"><div class="toggle-k"></div></div>
-    </div>
-    <!-- 手動觸發 cron 更新 -->
-    <div class="setting-row">
-      <div>
-        <div class="s-lbl">立即更新數據</div>
-        <div class="s-sub">觸發 cron 更新市場數據（約 15 秒）</div>
-      </div>
-      <button id="cron-btn" onclick="manualCronUpdate()" style="padding:6px 14px;border-radius:8px;background:var(--blue);color:#fff;border:none;font-size:12px;cursor:pointer;font-weight:600">更新</button>
     </div>
     <!-- 漲跌顏色切換 -->
     <div class="setting-row" style="border-bottom:none">
@@ -761,8 +748,11 @@ const SENT_TW={
     {l:'52週相對高點', v:50,max:100,col:'linear-gradient(90deg,#5b9cf6,#f0c040,#f05060)',zone:['低檔','高檔'],signal:'載入中…'},
     {l:'20日動量',     v:50,max:100,col:'linear-gradient(90deg,#f05060,#f0c040,#5b9cf6)',zone:['趨弱','趨強'],signal:'載入中…'},
   ],
-  pe:[
-    {n:'台積電 2330 P/E',   label:'台積電 2330',       section:'pe',    v:'--',avg:'均 18x', sig:'ok',sl:'載入中'},
+  macro:[
+    {n:'台股上漲家數', label:'今日上漲家數', v:'--', avg:'', sig:'ok', sl:'載入中'},
+    {n:'台股下跌家數', label:'今日下跌家數', v:'--', avg:'', sig:'ok', sl:'載入中'},
+    {n:'台股漲停家數', label:'今日漲停家數', v:'--', avg:'', sig:'ok', sl:'載入中'},
+    {n:'台股跌停家數', label:'今日跌停家數', v:'--', avg:'', sig:'ok', sl:'載入中'},
   ]
 };
 const SENT_US={
@@ -773,15 +763,12 @@ const SENT_US={
     {l:'20日動量',     v:50,max:100,col:'linear-gradient(90deg,#f05060,#f0c040,#5b9cf6)',zone:['趨弱','趨強'],signal:'載入中…'},
     {l:'VIX 恐慌指數', v:50,max:80, col:'linear-gradient(90deg,#5b9cf6,#f0c040,#f05060)',zone:['低波','高波'],signal:'載入中…'},
   ],
-  pe:[
-    {n:'S&P500 P/E (SPY)',   label:'S&P500 SPY',   section:'pe',    v:'--',avg:'均 17x',sig:'ok',sl:'載入中'},
-    {n:'那斯達克 P/E (QQQ)', label:'那斯達克 QQQ', section:'pe',    v:'--',avg:'均 28x',sig:'ok',sl:'載入中'},
-    {n:'科技 XLK',       label:'科技 XLK',     section:'pe',    v:'--',avg:'',sig:'ok',sl:'--'},
-    {n:'金融 XLF',       label:'金融 XLF',     section:'pe',    v:'--',avg:'',sig:'ok',sl:'--'},
-    {n:'能源 XLE',       label:'能源 XLE',     section:'pe',    v:'--',avg:'',sig:'ok',sl:'--'},
-    {n:'10Y美債殖利率',      label:'10Y美債殖利率',section:'macro', v:'--',avg:'均 2.5%',sig:'ok',sl:'載入中'},
-    {n:'殖利率利差',         label:'殖利率利差 T10Y2Y',section:'macro',v:'--',avg:'均 0.5%',sig:'ok',sl:'載入中'},
-    {n:'聯邦利率',           label:'聯邦利率 Fed Rate',section:'macro',v:'--',avg:'',     sig:'ok',sl:'載入中'},
+  macro:[
+    {n:'10Y美債殖利率', label:'10Y美債殖利率',      v:'--', avg:'均 2.5%', sig:'ok', sl:'載入中'},
+    {n:'殖利率利差',    label:'殖利率利差 T10Y2Y', v:'--', avg:'均 0.5%', sig:'ok', sl:'載入中'},
+    {n:'聯邦利率',      label:'聯邦利率 Fed Rate', v:'--', avg:'',        sig:'ok', sl:'載入中'},
+    {n:'美國失業率',    label:'美國失業率',         v:'--', avg:'',        sig:'ok', sl:'載入中'},
+    {n:'美國CPI年增率', label:'美國CPI年增率',      v:'--', avg:'',        sig:'ok', sl:'載入中'},
   ]
 };
 // 三大法人 fallback（TWSE API 尚未回傳時顯示）
@@ -868,7 +855,7 @@ window.addEventListener('DOMContentLoaded', () => {
         fetchAllPrices().then(() => { updateTicker(); updateIndices(); updateMarketSummary(); }),
         // Notion AI + Monitor（先填充，減少空白等待）
         Promise.all([fetchNotionAI(), fetchNotionMonitor()])
-          .then(() => { renderSentiment(sentMkt); renderChips(curChipsTab); }),
+          .then(() => { renderSentiment(sentMkt); renderChips(); }),
       ]);
     } catch(e) { console.log('[QN] 初始化錯誤:', e.message); }
 
@@ -877,7 +864,7 @@ window.addEventListener('DOMContentLoaded', () => {
       liveSent = await fetchSentimentData();
       renderSentiment(sentMkt);
       const instData = await fetchInstitutional();
-      if (instData) { liveInst = instData; renderChips(curChipsTab); }
+      if (instData) { liveInst = instData; renderChips(); }
       const usData = await fetchUSMarketData();
       if (usData) { liveUSData = usData; renderSentiment(sentMkt); }
     } catch(e) { console.log('[QN] 即時數據錯誤:', e.message); }
@@ -901,7 +888,7 @@ window.addEventListener('DOMContentLoaded', () => {
       await fetchAllPrices();
       liveSent = await fetchSentimentData();
       updateTicker(); updateIndices(); updateMarketSummary();
-      renderSentiment(sentMkt); renderChips(curChipsTab);
+      renderSentiment(sentMkt); renderChips();
     } catch(e) {}
     document.getElementById('today-date').textContent = nowDateStr() + '　' + nowTime() + ' 更新';
   }, 90000);
@@ -914,7 +901,7 @@ window.addEventListener('DOMContentLoaded', () => {
     } catch(e) {}
     try {
       await Promise.all([fetchNotionAI(), fetchNotionMonitor()]);
-      renderSentiment(sentMkt); renderChips(curChipsTab);
+      renderSentiment(sentMkt); renderChips();
     } catch(e) {}
   }, 600000);
 
@@ -1011,7 +998,7 @@ function sentTab(el,mkt){
 }
 function renderSentiment(mkt){
   // 優先使用 liveSent（即時 VIX 推算），否則 fallback 靜態
-  let fgVal, fgLabel, fgAI, gauges, pe;
+  let fgVal, fgLabel, fgAI, gauges, macro;
   if (liveSent) {
     const s = mkt==='tw' ? liveSent.tw : liveSent.us;
     fgVal   = s.fg;
@@ -1035,56 +1022,32 @@ function renderSentiment(mkt){
     ];
     fgAI = notionAI[mkt==='tw' ? '台股市場情緒' : '美股市場情緒']?.content
       || (mkt==='tw'
-        ? `📐 技術指標推算（MoodRing 算法）：RSI-14=${rsiV}（${rsiSig}），距52週高點=${vshV}，20日動量=${momV}。綜合情緒分數 ${s.score||50}。P/E 由 cron 每日自動更新。`
+        ? `📐 技術指標推算（MoodRing 算法）：RSI-14=${rsiV}（${rsiSig}），距52週高點=${vshV}，20日動量=${momV}。綜合情緒分數 ${s.score||50}。`
         : `📐 技術指標推算（MoodRing 算法）：RSI-14=${rsiV}（${rsiSig}），距52週高點=${vshV}，20日動量=${momV}。VIX=${vixV}（${vixSig}）。綜合情緒分數 ${s.score||50}。`);
-    // 美股 P/E 若有即時資料就更新
-    const usTag = (liveUSData && !liveUSData._isFallback) ? '⚡' : '📊';
-    if (mkt === 'us' && liveUSData) {
-      // P/E 判斷標準（相對歷史均值）
-      function peLabel(pe, cheap, fair, exp) {
-        const v = parseFloat(pe);
-        if (!v || isNaN(v)) return {sig:'ok', sl:'--'};
-        if (v <= cheap) return {sig:'lo', sl:'便宜'};
-        if (v <= fair)  return {sig:'ok', sl:'合理'};
-        if (v <= exp)   return {sig:'hi', sl:'略貴'};
-        return {sig:'hi', sl:'偏貴'};
-      }
-      const nmv = k => notionMonitor[k] || '--';
-      // 板塊 ETF：Yahoo Finance PE 對 ETF 不可靠，改顯示即時漲跌%
-      const fmtSCh = sym => { const ch = liveData[sym]?.ch; return ch != null ? (ch>=0?'+':'')+ch.toFixed(2)+'%' : '--'; };
-      const sigSCh = sym => { const ch = liveData[sym]?.ch; return ch==null?'ok':ch>0?'lo':ch<0?'hi':'ok'; };
-      pe = [
-        {n:'S&P500 P/E (SPY)',   label:'S&P500 SPY',   section:'pe', v:(liveUSData.spyPE||'23.1')+'x', avg:'均 17x', ...peLabel(liveUSData.spyPE,  14, 20, 25)},
-        {n:'那斯達克 P/E (QQQ)', label:'那斯達克 QQQ', section:'pe', v:(liveUSData.qqqPE||'36.4')+'x', avg:'均 28x', ...peLabel(liveUSData.qqqPE,  22, 32, 40)},
-        {n:'科技 XLK', label:'科技 XLK', section:'pe', v:fmtSCh('XLK'), avg:'', sig:sigSCh('XLK'), sl: liveData['XLK'] ? '⚡' : '--'},
-        {n:'金融 XLF', label:'金融 XLF', section:'pe', v:fmtSCh('XLF'), avg:'', sig:sigSCh('XLF'), sl: liveData['XLF'] ? '⚡' : '--'},
-        {n:'能源 XLE', label:'能源 XLE', section:'pe', v:fmtSCh('XLE'), avg:'', sig:sigSCh('XLE'), sl: liveData['XLE'] ? '⚡' : '--'},
-        {n:'10Y美債殖利率', label:'10Y美債殖利率',     section:'macro', v:nmv('10Y美債殖利率'), avg:'均 2.5%', sig:'ok', sl: notionMonitor['10Y美債殖利率'] ? '已同步' : '--'},
-        {n:'殖利率利差',    label:'殖利率利差 T10Y2Y', section:'macro', v:nmv('殖利率利差'),    avg:'均 0.5%', sig:'ok', sl: notionMonitor['殖利率利差']    ? '已同步' : '--'},
-        {n:'聯邦利率',      label:'聯邦利率 Fed Rate', section:'macro', v:nmv('聯邦利率'),      avg:'',        sig:'ok', sl: notionMonitor['聯邦利率']       ? '已同步' : '--'},
-      ];
-    } else {
-      pe = mkt==='tw' ? SENT_TW.pe : SENT_US.pe;
-    }
-    // 台股／美股 P/E：用 Notion 監控資料覆蓋靜態值
-    if (Object.keys(notionMonitor).length) {
-      pe = pe.map(item => {
-        const nv = notionMonitor[item.n];
-        if (!nv) return item;
-        const vStr = /x$/i.test(nv) || /%$/.test(nv) ? nv : nv + 'x';
-        return { ...item, v: vStr, sl: item.sl === '載入中' ? '已同步' : item.sl };
-      });
-    }
+    // 總經指標：從 Notion 監控資料動態讀取
+    const nmv = k => notionMonitor[k] || '--';
+    const synced = k => notionMonitor[k] ? '已同步' : '--';
+    macro = mkt === 'us' ? [
+      {n:'10Y美債殖利率', label:'10Y美債殖利率',      v:nmv('10Y美債殖利率'), avg:'均 2.5%', sig:'ok', sl:synced('10Y美債殖利率')},
+      {n:'殖利率利差',    label:'殖利率利差 T10Y2Y', v:nmv('殖利率利差'),    avg:'均 0.5%', sig:'ok', sl:synced('殖利率利差')},
+      {n:'聯邦利率',      label:'聯邦利率 Fed Rate', v:nmv('聯邦利率'),      avg:'',        sig:'ok', sl:synced('聯邦利率')},
+      {n:'美國失業率',    label:'美國失業率',         v:nmv('美國失業率'),    avg:'',        sig:'ok', sl:synced('美國失業率')},
+      {n:'美國CPI年增率', label:'美國CPI年增率',      v:nmv('美國CPI年增率'), avg:'',        sig:'ok', sl:synced('美國CPI年增率')},
+    ] : [
+      {n:'台股上漲家數', label:'今日上漲家數', v:nmv('台股上漲家數'), avg:'', sig:'ok', sl:synced('台股上漲家數')},
+      {n:'台股下跌家數', label:'今日下跌家數', v:nmv('台股下跌家數'), avg:'', sig:'ok', sl:synced('台股下跌家數')},
+      {n:'台股漲停家數', label:'今日漲停家數', v:nmv('台股漲停家數'), avg:'', sig:'ok', sl:synced('台股漲停家數')},
+      {n:'台股跌停家數', label:'今日跌停家數', v:nmv('台股跌停家數'), avg:'', sig:'ok', sl:synced('台股跌停家數')},
+    ];
   } else {
     const d0 = mkt==='tw' ? SENT_TW : SENT_US;
-    fgVal=d0.fg.val; fgLabel=d0.fg.label; fgAI=d0.fg.ai; gauges=d0.gauges; pe=d0.pe;
-    // 台股／美股 P/E：用 Notion 監控資料覆蓋靜態值
+    fgVal=d0.fg.val; fgLabel=d0.fg.label; fgAI=d0.fg.ai; gauges=d0.gauges; macro=d0.macro;
+    // 用 Notion 監控資料覆蓋靜態值
     if (Object.keys(notionMonitor).length) {
-      pe = pe.map(item => {
+      macro = macro.map(item => {
         const nv = notionMonitor[item.n];
         if (!nv) return item;
-        const vStr = /x$/i.test(nv) || /%$/.test(nv) ? nv : nv + 'x';
-        return { ...item, v: vStr, sl: item.sl === '載入中' ? '已同步' : item.sl };
+        return { ...item, v: nv, sl: item.sl === '載入中' ? '已同步' : item.sl };
       });
     }
   }
@@ -1132,25 +1095,11 @@ function renderSentiment(mkt){
       <div class="gauge-val" style="color:${col}">${g.v}</div>
     </div>`;
   });
-  const peItems    = pe.filter(p => !p.section || p.section === 'pe');
-  const macroItems = pe.filter(p => p.section === 'macro');
-  if (peItems.length > 0) {
-    html+=`</div><div class="card f4"><div class="sec-t" style="margin-bottom:10px">估值分析</div>`;
-    peItems.forEach(p=>{
-      html+=`<div class="pe-row">
-        <div class="pe-name">${p.label || p.n}</div>
-        <div class="pe-val ${p.sig==='hi'?'up':p.sig==='lo'?'dn':''}">${p.v}</div>
-        <div class="pe-avg">${p.avg}</div>
-        <span class="pe-signal sig-${p.sig}">${p.sl}</span>
-      </div>`;
-    });
-    html+=`</div>`;
-  } else {
-    html+=`</div>`;
-  }
-  if (macroItems.length > 0) {
-    html+=`<div class="card f5"><div class="sec-t" style="margin-bottom:10px">總經指標</div>`;
-    macroItems.forEach(p=>{
+  html+=`</div>`;
+  if (macro && macro.length > 0) {
+    const sectionLabel = mkt === 'tw' ? '市場廣度（TWSE）' : '總經指標（FRED）';
+    html+=`<div class="card f5"><div class="sec-t" style="margin-bottom:10px">${sectionLabel}</div>`;
+    macro.forEach(p=>{
       const vCol = p.v !== '--' ? 'var(--txt)' : 'var(--txt3)';
       html+=`<div class="pe-row">
         <div class="pe-name">${p.label || p.n}</div>
@@ -1165,17 +1114,8 @@ function renderSentiment(mkt){
 }
 
 // ── CHIPS ────────────────────────────────────────────────────────
-let curChipsTab='inst';
-function chipsTab(el,tab){
-  curChipsTab=tab;
-  document.querySelectorAll('.chips-tab').forEach(b=>b.classList.remove('on'));
-  el.classList.add('on');
-  renderChips(tab);
-}
-function renderChips(tab){
-  if(tab==='inst') renderInst();
-  else if(tab==='margin') renderMargin();
-  else renderLS();
+function renderChips(){
+  renderChipsAll();
 }
 function mkSubTabs(active){
   return `<div style="display:flex;gap:6px;margin-bottom:12px">
@@ -1187,92 +1127,119 @@ function chipsSub(el,m){
   chipsMktLs=m;
   el.parentElement.querySelectorAll('div').forEach(b=>{b.style.background='var(--bg2)';b.style.color='var(--txt3)'});
   el.style.background='#4db8ff';el.style.color='#fff';
-  renderChips(curChipsTab);
+  renderChips();
 }
-function renderInst(){
+// ── 籌碼整合頁（三大法人 + 融資融券 + 多空比例 合一顯示）────────
+function renderChipsAll() {
+  const isTW = chipsMktLs === 'tw';
+  let html = mkSubTabs(chipsMktLs);
+
+  // ── Section 1: 三大法人 ──
   let instRows, sectionTitle, tag;
-  if (chipsMktLs === 'tw') {
-    // 台股：三大法人，來自台灣證交所 API
-    tag = liveInst ? '<span style="font-size:9px;color:var(--blue)">⚡ 即時</span>' : '<span style="font-size:9px;color:var(--txt3)">(參考值)</span>';
-    sectionTitle = '今日三大法人買賣超 ' + tag;
+  if (isTW) {
+    tag = liveInst ? '<span style="font-size:9px;color:var(--blue)">⚡ 即時</span>' : '<span style="font-size:9px;color:var(--txt3)">(TWSE 更新中)</span>';
+    sectionTitle = '三大法人買賣超 ' + tag;
     instRows = liveInst ? [
-      {ico:'🏦',name:'外資',       sub:'FINI・證交所即時', amt:liveInst.foreign, up:liveInst.foreignUp, days:liveInst.foreignUp?'今日買超':'今日賣超'},
-      {ico:'🏛️',name:'投信',       sub:'本土投信・即時',   amt:liveInst.trust,   up:liveInst.trustUp,   days:liveInst.trustUp?'今日買超':'今日賣超'},
-      {ico:'🏢',name:'自營商',     sub:'券商自有資金・即時',amt:liveInst.dealer,  up:liveInst.dealerUp,  days:liveInst.dealerUp?'今日買超':'今日賣超'},
-      {ico:'📊',name:'三大法人合計',sub:'⚡ 台灣證交所即時', amt:liveInst.total,   up:liveInst.totalUp,   days:liveInst.totalUp?'整體偏多':'整體偏空'},
+      {ico:'🏦',name:'外資',        sub:'FINI・證交所即時',   amt:liveInst.foreign, up:liveInst.foreignUp, days:liveInst.foreignUp?'今日買超':'今日賣超'},
+      {ico:'🏛️',name:'投信',        sub:'本土投信・即時',     amt:liveInst.trust,   up:liveInst.trustUp,   days:liveInst.trustUp?'今日買超':'今日賣超'},
+      {ico:'🏢',name:'自營商',      sub:'券商自有資金・即時', amt:liveInst.dealer,  up:liveInst.dealerUp,  days:liveInst.dealerUp?'今日買超':'今日賣超'},
+      {ico:'📊',name:'三大法人合計',sub:'⚡ 台灣證交所即時',  amt:liveInst.total,   up:liveInst.totalUp,   days:liveInst.totalUp?'整體偏多':'整體偏空'},
     ] : CHIPS_INST;
   } else {
-    // 美股：機構資金流向（美股無三大法人制度，改用資金流向推算）
     const usInst = computeUSInstitutional();
     tag = '<span style="font-size:9px;color:var(--blue)">⚡ 即時推算</span>';
-    sectionTitle = '美股機構資金流向 ' + tag;
+    sectionTitle = '機構資金流向 ' + tag;
     instRows = [usInst.inst, usInst.hedge, usInst.retail, usInst.total];
   }
-  let html=mkSubTabs(chipsMktLs)+`<div class="card f2"><div class="sec-t" style="margin-bottom:10px">${sectionTitle}</div>`;
-  instRows.forEach(r=>{
-    const col=r.up?'var(--up)':'var(--dn)';
-    html+=`<div class="inst-row"><div class="inst-ico">${r.ico}</div><div style="flex:1"><div class="inst-name">${r.name}</div><div class="inst-sub">${r.sub}</div></div><div style="text-align:right"><div class="inst-amt" style="color:${col}">${r.amt}</div><div class="inst-days">${r.days}</div></div></div>`;
+  html += `<div class="card f2"><div class="sec-t" style="margin-bottom:10px">${sectionTitle}</div>`;
+  instRows.forEach(r => {
+    const col = r.up ? 'var(--up)' : 'var(--dn)';
+    html += `<div class="inst-row"><div class="inst-ico">${r.ico}</div><div style="flex:1"><div class="inst-name">${r.name}</div><div class="inst-sub">${r.sub}</div></div><div style="text-align:right"><div class="inst-amt" style="color:${col}">${r.amt}</div><div class="inst-days">${r.days}</div></div></div>`;
   });
-  html+=`</div>`;
-  // 台股：TWSE 提供近10日外資買賣超（逗號分隔），缺則隱藏圖表
-  // 美股：無可靠歷史數據來源，不顯示圖表
-  let vals, chartTitle;
-  if (chipsMktLs === 'tw') {
+  html += `</div>`;
+
+  // 台股：外資近10日買賣超折線圖
+  if (isTW) {
     const rawVals = notionMonitor['外資近10日買賣超'];
-    vals = rawVals ? rawVals.split(',').map(v => parseFloat(v.trim())).filter(v => !isNaN(v)) : null;
-    chartTitle = '外資近10日買賣超（億元）';
-  } else {
-    vals = null;
-    chartTitle = '';
+    const vals = rawVals ? rawVals.split(',').map(v => parseFloat(v.trim())).filter(v => !isNaN(v)) : null;
+    if (vals && vals.length >= 2) {
+      const maxV = Math.max(...vals.map(Math.abs)) || 1;
+      const sum = vals.reduce((a, b) => a + b, 0);
+      html += `<div class="card f3"><div class="sec-t" style="margin-bottom:10px">外資近10日買賣超（億元）</div>
+        <div style="display:flex;gap:3px;align-items:flex-end;height:56px">`;
+      vals.forEach(v => {
+        const h = Math.round(Math.abs(v) / maxV * 50) + 3;
+        html += `<div style="flex:1;height:${h}px;margin-top:${56-h}px;background:${v>=0?'var(--up)':'var(--dn)'};border-radius:3px 3px 0 0;opacity:.8"></div>`;
+      });
+      html += `</div><div style="display:flex;justify-content:space-between;font-size:8px;color:var(--txt3);font-family:var(--mono);margin-top:3px"><span>10天前</span><span>今日</span></div>
+        <div style="display:flex;justify-content:flex-end;gap:6px;margin-top:8px;align-items:center">
+          <span style="font-size:10px;color:var(--txt2)">累計10日：</span>
+          <span style="font-family:var(--mono);font-size:12px;font-weight:700;color:${sum>=0?'var(--up)':'var(--dn)'}">${sum>=0?'+':''}${sum.toFixed(0)}億</span>
+        </div></div>`;
+    }
   }
-  if (vals && vals.length >= 2) {
-    const maxV = Math.max(...vals.map(Math.abs)) || 1;
-    const sum = vals.reduce((a,b) => a+b, 0);
-    html += `<div class="card f3"><div class="sec-t" style="margin-bottom:10px">${chartTitle}</div>
-      <div style="display:flex;gap:3px;align-items:flex-end;height:56px">`;
-    vals.forEach(v => {
-      const h = Math.round(Math.abs(v)/maxV*50)+3;
-      html += `<div style="flex:1;height:${h}px;margin-top:${56-h}px;background:${v>=0?'var(--up)':'var(--dn)'};border-radius:3px 3px 0 0;opacity:.8"></div>`;
-    });
-    html += `</div><div style="display:flex;justify-content:space-between;font-size:8px;color:var(--txt3);font-family:var(--mono);margin-top:3px"><span>10天前</span><span>今日</span></div>
-      <div style="display:flex;justify-content:flex-end;gap:6px;margin-top:8px;align-items:center">
-        <span style="font-size:10px;color:var(--txt2)">累計10日：</span>
-        <span style="font-family:var(--mono);font-size:12px;font-weight:700;color:${sum>=0?'var(--up)':'var(--dn)'}">${sum>=0?'+':''}${sum.toFixed(0)}${chipsMktLs==='tw'?'億':'億美元'}</span>
-      </div></div>`;
-  }
-  const instAIData = notionAI[chipsMktLs==='tw' ? '台股籌碼' : '美股籌碼'];
-  const instAITxt = instAIData?.content || (chipsMktLs==='tw' ? '三大法人籌碼資料載入中…' : '美股機構資金流向載入中…');
-  html += renderAICard({hd: '🤖 AI 籌碼解讀', text: instAITxt});
-  document.getElementById('chips-content').innerHTML=html;
-}
-function renderMargin(){
-  const data=getMarginData(chipsMktLs);
-  let html=mkSubTabs(chipsMktLs)+`<div class="card f2"><div class="sec-t" style="margin-bottom:10px">${chipsMktLs==='tw'?'台股':'美股'} 融資融券概況</div>`;
-  data.forEach(r=>{
-    const col=r.up===true?'var(--up)':r.up===false?'var(--dn)':'var(--gold)';
-    html+=`<div class="margin-row">
+
+  // ── Section 2: 融資融券 ──
+  const marginData = getMarginData(chipsMktLs);
+  html += `<div class="card f4"><div class="sec-t" style="margin-bottom:10px">${isTW?'台股':'美股'} 融資融券概況</div>`;
+  marginData.forEach(r => {
+    const col = r.up === true ? 'var(--up)' : r.up === false ? 'var(--dn)' : 'var(--gold)';
+    html += `<div class="margin-row">
       <div class="margin-name">${r.n}</div>
       <div class="margin-bar-w"><div class="margin-bar-f" style="width:${r.pct}%;background:${col}"></div></div>
       <div class="margin-val" style="color:${col}">${r.v}${r.chg && r.chg !== '--' ? ` <span style="font-size:9px;color:${r.up===true?'var(--up)':r.up===false?'var(--dn)':'var(--txt3)'}">${r.chg}</span>` : ''}</div>
     </div>`;
   });
-  html+=`</div>`;
-  // 融資風險值：從 notionMonitor['融資使用率'] 動態讀取（台股），美股用 SPY 短空% + VIX
-  const vixCur  = liveData['^VIX']?.p || 18;
-  const rpRaw = chipsMktLs==='tw'
+  html += `</div>`;
+
+  // ── Section 3: 多空比例 ──
+  const vixCur = liveData['^VIX']?.p || 18;
+  let longPct, shortPct, longLabel, shortLabel, subNote;
+  if (isTW) {
+    const twiiCh = liveData['^TWII']?.ch || 0;
+    const twLongBase = parseFloat(notionMonitor['台股多頭%']) || 62;
+    longPct = Math.min(85, Math.max(30, Math.round(twLongBase + twiiCh * 2)));
+    longLabel = '多頭'; shortLabel = '空頭';
+    subNote = '外資淨買賣超方向推算';
+  } else {
+    const spCh = liveData['^GSPC']?.ch || 0;
+    const usLongBase = parseFloat(notionMonitor['美股多頭%']) || 55;
+    longPct = Math.min(85, Math.max(30, Math.round(usLongBase + spCh * 3)));
+    longLabel = 'Long'; shortLabel = 'Short';
+    subNote = '多頭部位 vs 放空部位（機構投資人）';
+  }
+  shortPct = 100 - longPct;
+
+  // 融資風險儀表（台股用融資使用率，美股用VIX）
+  const rpRaw = isTW
     ? parseFloat(notionMonitor['融資使用率']) || null
-    : parseFloat(notionMonitor['SPY 短空%'])  || null;
-  const rpLabel = rpRaw != null ? Math.round(rpRaw) : (chipsMktLs==='us' ? vixCur.toFixed(1) : '--');
-  const rp = rpRaw ?? (chipsMktLs==='us' ? Math.min(100, Math.max(0, (vixCur-10)/40*100)) : 50);
-  const rc=rp>70?'var(--up)':rp>50?'var(--gold)':'var(--dn)';
-  const rv=2*Math.PI*28, rf=rv*rp/100;
-  const riskDesc = chipsMktLs==='tw'
-    ? (rpRaw!=null ? `台股融資使用率 ${rpLabel}%${rp>=75?'，已達高風險水位，歷史上超過75%後修正機率提高，建議控管槓桿。':rp>=60?'，處中高水位，留意槓桿風險。':'，目前尚在合理範圍。'}` : '融資使用率資料每日收盤後由 TWSE API 自動更新，請稍後查看。')
-    : (rpRaw!=null ? `SPY 短空比例 ${rpRaw}%，${rp>=4?'空頭部位偏重，市場謹慎。':'空頭比例正常，市場相對樂觀。'}` : `VIX ${vixCur.toFixed(1)}，${vixCur>25?'波動偏高，市場謹慎。':vixCur<15?'波動偏低，市場樂觀。':'波動正常。'}`);
-  const gaugeLabel = chipsMktLs==='tw' ? (rpRaw!=null?(rp>=70?'⚠️ 高風險':rp>=50?'中等風險':'低風險'):'TWSE 載入中')
-                                       : (vixCur>25?'⚠️ 高波動':vixCur<15?'低波動':'正常波動');
-  const gaugeUnit  = chipsMktLs==='tw' ? '使用率%' : 'VIX';
-  html+=`<div class="card f3"><div class="sec-t" style="margin-bottom:10px">融資風險儀表板</div>
+    : null;
+  const rp = rpRaw ?? (isTW ? 50 : Math.min(100, Math.max(0, (vixCur-10)/40*100)));
+  const rpLabel = rpRaw != null ? Math.round(rpRaw) : (isTW ? '--' : vixCur.toFixed(1));
+  const rc = rp > 70 ? 'var(--up)' : rp > 50 ? 'var(--gold)' : 'var(--dn)';
+  const rv = 2 * Math.PI * 28, rf = rv * rp / 100;
+  const gaugeUnit = isTW ? '使用率%' : 'VIX';
+  const gaugeLabel = isTW
+    ? (rpRaw != null ? (rp >= 70 ? '⚠️ 高風險' : rp >= 50 ? '中等風險' : '低風險') : 'TWSE 更新中')
+    : (vixCur > 25 ? '⚠️ 高波動' : vixCur < 15 ? '低波動' : '正常波動');
+  const riskDesc = isTW
+    ? (rpRaw != null ? `台股融資使用率 ${rpLabel}%${rp>=75?'，已達高風險水位，建議控管槓桿。':rp>=60?'，處中高水位，留意槓桿風險。':'，目前尚在合理範圍。'}` : '融資使用率資料每日收盤後由 TWSE API 自動更新。')
+    : `VIX ${vixCur.toFixed(1)}，${vixCur>25?'波動偏高，市場謹慎。':vixCur<15?'波動偏低，市場樂觀。':'波動正常。'}`;
+
+  html += `<div class="card f5">
+    <div class="sec-t" style="margin-bottom:10px">整體多空比例</div>
+    <div class="ls-label">
+      <span style="color:var(--up)">${longLabel} ${longPct}%</span>
+      <span style="color:var(--dn)">${shortLabel} ${shortPct}%</span>
+    </div>
+    <div class="ls-wrap">
+      <div class="ls-long" style="flex:${longPct}">${longPct}%</div>
+      <div class="ls-short" style="flex:${shortPct}">${shortPct}%</div>
+    </div>
+    <div style="font-size:10px;color:var(--txt3);margin-top:6px">${subNote}</div>
+  </div>`;
+
+  html += `<div class="card f6"><div class="sec-t" style="margin-bottom:10px">槓桿風險儀表</div>
     <div style="display:flex;align-items:center;gap:14px;padding:6px 0">
       <svg width="72" height="72" viewBox="0 0 72 72">
         <circle cx="36" cy="36" r="28" fill="none" stroke="var(--bg3)" stroke-width="7"/>
@@ -1286,122 +1253,14 @@ function renderMargin(){
         <div style="font-size:14px;font-weight:700;color:${rc}">${gaugeLabel}</div>
         <div style="font-size:11px;color:var(--txt2);margin-top:5px;line-height:1.65">${riskDesc}</div>
       </div>
-    </div></div>
-  `;
-  // AI 解讀文字：優先用 Notion，否則 fallback
-  const marginAIData = notionAI[chipsMktLs==='tw' ? '台股融資' : '美股籌碼'];
-  let marginAITxt;
-  if (marginAIData?.content) {
-    marginAITxt = marginAIData.content;
-  } else {
-    const twCh = (liveData['^TWII']?.ch||0);
-    const twChStr = (twCh>=0?'+':'') + twCh.toFixed(2) + '%';
-    marginAITxt = chipsMktLs==='tw'
-      ? '台股融資餘額由 TWSE API 每日自動更新。大盤加權今日 ' + twChStr + '，供研判融資方向參考。'
-      : `美股以 SPY 短空比例 + VIX ${(liveData['^VIX']?.p||18).toFixed(1)} 評估槓桿風險。S&P500今日 ${(((liveData['^GSPC']?.ch||0)>=0?'+':'')+(liveData['^GSPC']?.ch||0).toFixed(2))}%。高融資水位是隱憂。`;
-  }
-  html += renderAICard({hd: '🤖 AI 融資解讀', text: marginAITxt});
-  document.getElementById('chips-content').innerHTML=html;
-}
-function renderLS(){
-  let d;
-  // ── 台股：動態多空比 + 靜態個股籌碼含股名 ──
-  if (chipsMktLs === 'tw') {
-    const twiiCh = liveData['^TWII']?.ch || 0;
-    const twLongBase = parseFloat(notionMonitor['台股多頭%'] ?? notionMonitor['台股多空比']?.split(':')[0]) || 62;
-    const longPct = Math.min(85, Math.max(30, Math.round(twLongBase + twiiCh * 2)));
-    // 個股多空：從 Notion Monitor 讀取「{代號} 多頭%」，缺則顯示待同步
-    const twStocks = TW_STOCK_LIST.map(({n, name}) => {
-      const lvRaw = parseFloat(notionMonitor[`${n} 多頭%`]);
-      const lv = isNaN(lvRaw) ? null : Math.min(100, Math.max(0, Math.round(lvRaw)));
-      const netRaw = notionMonitor[`${n} 買賣超`];
-      return {
-        n, name,
-        lv: lv ?? 50,
-        sv: lv != null ? 100 - lv : 50,
-        net: netRaw || '',
-        noData: lv == null,
-      };
-    });
-    d = {
-      long: longPct,
-      short: 100 - longPct,
-      stocks: twStocks,
-    };
-  // ── 美股：動態多空比 + 即時空頭資料 ──
-  } else {
-    const spCh    = liveData['^GSPC']?.ch || 0;
-    const nvdaSv  = liveUSData?.nvdaShort ? parseFloat(liveUSData.nvdaShort) : parseFloat(notionMonitor['NVDA 短空%'] ?? notionMonitor['NVDA 短空比']) || 2.1;
-    const tslaSv  = liveUSData?.tslaShort ? parseFloat(liveUSData.tslaShort) : parseFloat(notionMonitor['TSLA 短空%'] ?? notionMonitor['TSLA 短空比']) || 8.4;
-    const spySv   = liveUSData?.spyShort  ? parseFloat(liveUSData.spyShort)  : parseFloat(notionMonitor['SPY 短空%']  ?? notionMonitor['SPY 短空比'])  || 2.5;
-    const aaplSv  = parseFloat(notionMonitor['AAPL 短空%'] ?? notionMonitor['AAPL 短空比']) || 0.8;
-    const metaSv  = parseFloat(notionMonitor['META 短空%'] ?? notionMonitor['META 短空比']) || 1.2;
-    const usLongBase = parseFloat(notionMonitor['美股多頭%'] ?? notionMonitor['美股多空比']?.split(':')[0]) || 55;
-    const longPct = Math.min(85, Math.max(30, Math.round(usLongBase + spCh * 3)));
-    const liveTag = liveUSData ? '⚡' : '';
-    const nvdaShortStr = liveUSData?.nvdaShort || notionMonitor['NVDA 短空%'] || notionMonitor['NVDA 短空比'] || '2.1%';
-    const tslaShortStr = liveUSData?.tslaShort || notionMonitor['TSLA 短空%'] || notionMonitor['TSLA 短空比'] || '8.4%';
-    const spyShortStr  = liveUSData?.spyShort  || notionMonitor['SPY 短空%']  || notionMonitor['SPY 短空比']  || '2.5%';
-    const aaplShortStr = notionMonitor['AAPL 短空%'] || notionMonitor['AAPL 短空比'] || '0.8%';
-    const metaShortStr = notionMonitor['META 短空%'] || notionMonitor['META 短空比'] || '1.2%';
-    d = {
-      long: longPct,
-      short: 100 - longPct,
-      stocks: [
-        {n:'NVDA', name:'輝達',   lv:Math.round(100-nvdaSv*3),  sv:Math.round(nvdaSv*3),  net: nvdaShortStr ? nvdaShortStr + (liveTag?' ⚡':'') : ''},
-        {n:'TSLA', name:'特斯拉', lv:Math.round(100-tslaSv),    sv:Math.round(tslaSv),    net: tslaShortStr ? tslaShortStr + (liveTag?' ⚡':'') : ''},
-        {n:'SPY',  name:'S&P500', lv:Math.round(100-spySv*4),   sv:Math.round(spySv*4),   net: spyShortStr  ? spyShortStr  + (liveTag?' ⚡':'') : ''},
-        {n:'AAPL', name:'蘋果',   lv:Math.round(100-aaplSv*3),  sv:Math.round(aaplSv*3),  net: aaplShortStr ? aaplShortStr : ''},
-        {n:'META', name:'Meta',   lv:Math.round(100-metaSv*3),  sv:Math.round(metaSv*3),  net: metaShortStr ? metaShortStr : ''},
-      ]
-    };
-  }
-
-  const isTW = chipsMktLs === 'tw';
-  const longLabel  = isTW ? '多頭' : 'Long';
-  const shortLabel = isTW ? '空頭' : 'Short';
-  const subNote    = isTW ? '融資做多 vs 融券做空比例（含法人部位）' : '多頭部位 vs 放空部位（機構投資人）';
-  const dataTag    = isTW ? '' : (liveUSData ? ' <span style="font-size:9px;color:var(--blue)">⚡ 即時</span>' : '');
-
-  let html = mkSubTabs(chipsMktLs) +
-    `<div class="card f2">
-      <div class="sec-t" style="margin-bottom:10px">整體多空比例${dataTag}</div>
-      <div class="ls-label">
-        <span style="color:var(--up)">${longLabel} ${d.long}%</span>
-        <span style="color:var(--dn)">${shortLabel} ${d.short}%</span>
-      </div>
-      <div class="ls-wrap">
-        <div class="ls-long" style="flex:${d.long}">${d.long}%</div>
-        <div class="ls-short" style="flex:${d.short}">${d.short}%</div>
-      </div>
-      <div style="font-size:10px;color:var(--txt3);margin-top:6px">${subNote}</div>
     </div>
-    <div class="card f3"><div class="sec-t" style="margin-bottom:10px">個股籌碼分佈</div>`;
+  </div>`;
 
-  d.stocks.forEach(s => {
-    html += `<div class="sc-row">
-      <div class="sc-name">
-        <div style="font-family:var(--mono);font-size:11px;font-weight:600;color:var(--txt)">${s.n}</div>
-        ${s.name ? `<div style="font-size:9px;color:var(--txt3);margin-top:1px">${s.name}</div>` : ''}
-      </div>
-      <div class="sc-bars">
-        <div class="ls-wrap" style="height:14px;border-radius:4px;margin-bottom:3px">
-          <div class="ls-long" style="flex:${s.lv};font-size:8.5px">${s.lv}%</div>
-          <div class="ls-short" style="flex:${s.sv};font-size:8.5px">${s.sv}%</div>
-        </div>
-        <div style="font-size:9px;color:var(--txt3)">${s.net}</div>
-      </div>
-    </div>`;
-  });
+  // ── AI 整合解讀（台股/美股各一次，涵蓋所有籌碼資訊）──
+  const aiData = notionAI[isTW ? '台股籌碼' : '美股籌碼'];
+  const aiTxt = aiData?.content || (isTW ? '台股籌碼整合資料載入中…' : '美股籌碼整合資料載入中…');
+  html += renderAICard({hd: `🤖 AI ${isTW?'台股':'美股'}籌碼整合解讀`, text: aiTxt});
 
-  // AI 解讀（台股、美股分別，從 Notion 取）
-  const lsAIData = notionAI[isTW ? '台股多空' : '美股籌碼'];
-  const lsAITxt = lsAIData?.content || (isTW
-    ? `台股多空比 ${d.long}:${d.short}，${d.long>55?'多方偏強':'整體偏空或震盪'}。資料為即時推算，僅供參考。`
-    : `美股多空比 ${d.long}:${d.short}，${d.long>55?'多方偏強':'謹慎偏空'}。資料為即時推算，僅供參考。`);
-
-  html += `</div>`;
-  html += renderAICard({hd: '🤖 AI 多空解讀', text: lsAITxt});
   document.getElementById('chips-content').innerHTML = html;
 }
 
@@ -1421,7 +1280,7 @@ function setUpDown(mode){
   document.getElementById('dn-label').textContent=dnLabel[mode];
   // Re-render dynamic content so colors update
   renderSentiment(sentMkt);
-  renderChips(curChipsTab);
+  renderChips();
 }
 
 // ── AI PAYWALL ───────────────────────────────────────────────────
@@ -1451,7 +1310,7 @@ function renderAICard(opts){
     <div class="ai-paywall">
       <div class="ai-paywall-blur">${textEl}</div>
       <div class="ai-paywall-overlay">
-        <button class="ai-lock-btn" onclick="watchAd(function(){setAIUnlocked();renderSentiment(sentMkt);renderChips(curChipsTab);})">▶ 看廣告，解鎖完整 AI 分析</button>
+        <button class="ai-lock-btn" onclick="watchAd(function(){setAIUnlocked();renderSentiment(sentMkt);renderChips();})">▶ 看廣告，解鎖完整 AI 分析</button>
         <span class="ai-lock-hint">免費觀看 · 解鎖 24 小時</span>
       </div>
     </div>
@@ -1548,28 +1407,6 @@ async function sendMsg(){
     removeLoading();addMsg('ai','目前網路有問題，請稍後再試。\n\n可先問我「台股外資籌碼解讀」看示範 🦥');
   }
   document.getElementById('sbtn').disabled=false;
-}
-
-// ── 手動觸發 cron 更新 ────────────────────────────────────────────
-async function manualCronUpdate() {
-  const btn = document.getElementById('cron-btn');
-  if (!btn) return;
-  btn.textContent = '更新中…'; btn.disabled = true;
-  try {
-    const r = await fetch(`${VERCEL_API}/api/cron`, { signal: AbortSignal.timeout(30000) });
-    const d = await r.json();
-    btn.textContent = d.success ? '✅ 完成' : '❌ 失敗';
-    if (d.success) {
-      // 重新載入 Notion 數據
-      setTimeout(async () => {
-        await Promise.all([fetchNotionAI(), fetchNotionMonitor()]);
-        renderSentiment(sentMkt); renderChips(curChipsTab);
-      }, 2000);
-    }
-  } catch(e) {
-    btn.textContent = '❌ 失敗';
-  }
-  setTimeout(() => { btn.textContent = '更新'; btn.disabled = false; }, 4000);
 }
 
 // ── NAVIGATION ───────────────────────────────────────────────────
