@@ -786,10 +786,10 @@ const SENT_US={
 };
 // 三大法人 fallback（TWSE API 尚未回傳時顯示）
 const CHIPS_INST=[
-  {ico:'🏦',name:'外資',        sub:'FINI・資料來源：台灣證交所 TWSE',    amt:'--',up:null,days:'TWSE 載入中',pct:50},
-  {ico:'🏛️',name:'投信',        sub:'本土投信・台灣證交所 TWSE',          amt:'--',up:null,days:'TWSE 載入中',pct:50},
-  {ico:'🏢',name:'自營商',      sub:'券商自有資金・台灣證交所 TWSE',      amt:'--',up:null,days:'TWSE 載入中',pct:50},
-  {ico:'📊',name:'三大法人合計',sub:'📋 每日收盤後由 TWSE API 自動更新', amt:'--',up:null,days:'TWSE 載入中',pct:50},
+  {ico:'🏦',name:'外資',        sub:'FINI・資料來源：台灣證交所 TWSE',    amt:'--',up:null,days:'收盤後更新',pct:50},
+  {ico:'🏛️',name:'投信',        sub:'本土投信・台灣證交所 TWSE',          amt:'--',up:null,days:'收盤後更新',pct:50},
+  {ico:'🏢',name:'自營商',      sub:'券商自有資金・台灣證交所 TWSE',      amt:'--',up:null,days:'收盤後更新',pct:50},
+  {ico:'📊',name:'三大法人合計',sub:'📋 每日收盤後由 TWSE API 自動更新', amt:'--',up:null,days:'收盤後更新',pct:50},
 ];
 // 融資融券：從 notionMonitor 取得，fallback 顯示 --
 function getMarginData(mkt) {
@@ -1195,12 +1195,26 @@ function renderInst(){
     // 台股：三大法人，來自台灣證交所 API
     tag = liveInst ? '<span style="font-size:9px;color:var(--blue)">⚡ 即時</span>' : '<span style="font-size:9px;color:var(--txt3)">(參考值)</span>';
     sectionTitle = '今日三大法人買賣超 ' + tag;
-    instRows = liveInst ? [
-      {ico:'🏦',name:'外資',       sub:'FINI・證交所即時', amt:liveInst.foreign, up:liveInst.foreignUp, days:liveInst.foreignUp?'今日買超':'今日賣超'},
-      {ico:'🏛️',name:'投信',       sub:'本土投信・即時',   amt:liveInst.trust,   up:liveInst.trustUp,   days:liveInst.trustUp?'今日買超':'今日賣超'},
-      {ico:'🏢',name:'自營商',     sub:'券商自有資金・即時',amt:liveInst.dealer,  up:liveInst.dealerUp,  days:liveInst.dealerUp?'今日買超':'今日賣超'},
-      {ico:'📊',name:'三大法人合計',sub:'⚡ 台灣證交所即時', amt:liveInst.total,   up:liveInst.totalUp,   days:liveInst.totalUp?'整體偏多':'整體偏空'},
-    ] : CHIPS_INST;
+    if (liveInst) {
+      instRows = [
+        {ico:'🏦',name:'外資',       sub:'FINI・證交所即時', amt:liveInst.foreign, up:liveInst.foreignUp, days:liveInst.foreignUp?'今日買超':'今日賣超'},
+        {ico:'🏛️',name:'投信',       sub:'本土投信・即時',   amt:liveInst.trust,   up:liveInst.trustUp,   days:liveInst.trustUp?'今日買超':'今日賣超'},
+        {ico:'🏢',name:'自營商',     sub:'券商自有資金・即時',amt:liveInst.dealer,  up:liveInst.dealerUp,  days:liveInst.dealerUp?'今日買超':'今日賣超'},
+        {ico:'📊',name:'三大法人合計',sub:'⚡ 台灣證交所即時', amt:liveInst.total,   up:liveInst.totalUp,   days:liveInst.totalUp?'整體偏多':'整體偏空'},
+      ];
+    } else {
+      // 無 Notion 資料時，依 TWII 漲跌推算外資方向（僅供參考）
+      const twiiCh = liveData['^TWII']?.ch ?? 0;
+      const estAmt = twiiCh > 0.5 ? '+' + (twiiCh * 35).toFixed(0) + '億（估）'
+                   : twiiCh < -0.5 ? (twiiCh * 35).toFixed(0) + '億（估）' : '--';
+      const estUp  = twiiCh > 0.3 ? true : twiiCh < -0.3 ? false : null;
+      instRows = [
+        {ico:'🏦',name:'外資',        sub:'FINI・依大盤方向推算',              amt:estAmt, up:estUp, days:estUp?'估計買超':estUp===false?'估計賣超':'觀望'},
+        {ico:'🏛️',name:'投信',        sub:'本土投信・台灣證交所 TWSE',          amt:'--',   up:null,  days:'收盤後更新'},
+        {ico:'🏢',name:'自營商',      sub:'券商自有資金・台灣證交所 TWSE',      amt:'--',   up:null,  days:'收盤後更新'},
+        {ico:'📊',name:'三大法人合計',sub:'📋 每日收盤後由 TWSE API 自動更新', amt:'--',   up:null,  days:'收盤後更新'},
+      ];
+    }
   } else {
     // 美股：機構資金流向（美股無三大法人制度，改用資金流向推算）
     const usInst = computeUSInstitutional();
