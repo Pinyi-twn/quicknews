@@ -1326,10 +1326,10 @@ function renderChipsAll() {
   } else {
     const ud = liveUSData || {};
     const shortItems = [
-      {n:'NVDA',  v: ud.nvdaShort || SHORT_INT_FALLBACK['NVDA'], pct: parseFloat(ud.nvdaShort || SHORT_INT_FALLBACK['NVDA']) * 10},
-      {n:'TSLA',  v: ud.tslaShort || SHORT_INT_FALLBACK['TSLA'], pct: parseFloat(ud.tslaShort || SHORT_INT_FALLBACK['TSLA']) * 10},
-      {n:'AAPL',  v: SHORT_INT_FALLBACK['AAPL'],                 pct: parseFloat(SHORT_INT_FALLBACK['AAPL']) * 10},
-      {n:'SPY',   v: ud.spyShort  || SHORT_INT_FALLBACK['SPY'],  pct: parseFloat(ud.spyShort  || SHORT_INT_FALLBACK['SPY'])  * 10},
+      {n:'輝達 NVDA',  v: ud.nvdaShort || SHORT_INT_FALLBACK['NVDA'], pct: parseFloat(ud.nvdaShort || SHORT_INT_FALLBACK['NVDA']) * 10},
+      {n:'特斯拉 TSLA', v: ud.tslaShort || SHORT_INT_FALLBACK['TSLA'], pct: parseFloat(ud.tslaShort || SHORT_INT_FALLBACK['TSLA']) * 10},
+      {n:'蘋果 AAPL',  v: SHORT_INT_FALLBACK['AAPL'],                 pct: parseFloat(SHORT_INT_FALLBACK['AAPL']) * 10},
+      {n:'標普ETF SPY', v: ud.spyShort  || SHORT_INT_FALLBACK['SPY'],  pct: parseFloat(ud.spyShort  || SHORT_INT_FALLBACK['SPY'])  * 10},
     ];
     html += `<div class="card f4"><div class="sec-t" style="margin-bottom:10px">美股空頭倉位（短空比例）</div>`;
     shortItems.forEach(r => {
