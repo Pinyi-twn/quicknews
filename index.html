@@ -1242,7 +1242,7 @@ function renderChipsAll() {
     const usInst = computeUSInstitutional();
     tag = '<span style="font-size:9px;color:var(--blue)">⚡ 即時推算</span>';
     sectionTitle = '機構資金流向 ' + tag;
-    instRows = [usInst.inst, usInst.hedge, usInst.retail, usInst.total];
+    instRows = [usInst.inst, usInst.retail, usInst.total];
   }
   html += `<div class="card f3"><div class="sec-t" style="margin-bottom:10px">${sectionTitle}</div>`;
   instRows.forEach(r => {
@@ -1266,23 +1266,22 @@ function renderChipsAll() {
     html += `</div>`;
   } else {
     const ud = liveUSData || {};
-    const peStatus = liveUSData ? '即時' : '載入中';
-    const peItems = [
-      {n:'SPY P/E',  v: ud.spyPE  || '--'},
-      {n:'QQQ P/E',  v: ud.qqqPE  || '--'},
-      {n:'NVDA P/E', v: ud.nvdaPE || '--'},
-      {n:'AAPL P/E', v: ud.aaplPE || '--'},
-      {n:'TSLA P/E', v: ud.tslaPE || '--'},
+    const shortItems = [
+      {n:'NVDA',  v: ud.nvdaShort || SHORT_INT_FALLBACK['NVDA'], pct: parseFloat(ud.nvdaShort || SHORT_INT_FALLBACK['NVDA']) * 10},
+      {n:'TSLA',  v: ud.tslaShort || SHORT_INT_FALLBACK['TSLA'], pct: parseFloat(ud.tslaShort || SHORT_INT_FALLBACK['TSLA']) * 10},
+      {n:'AAPL',  v: SHORT_INT_FALLBACK['AAPL'],                 pct: parseFloat(SHORT_INT_FALLBACK['AAPL']) * 10},
+      {n:'SPY',   v: ud.spyShort  || SHORT_INT_FALLBACK['SPY'],  pct: parseFloat(ud.spyShort  || SHORT_INT_FALLBACK['SPY'])  * 10},
     ];
-    html += `<div class="card f4"><div class="sec-t" style="margin-bottom:10px">美股個股估值</div>`;
-    peItems.forEach(r => {
-      const vCol = r.v !== '--' ? 'var(--txt)' : 'var(--txt3)';
-      html += `<div class="pe-row">
-        <div class="pe-name">${r.n}</div>
-        <div class="pe-val" style="color:${vCol}">${r.v}</div>
-        <span class="pe-signal sig-ok">${peStatus}</span>
+    html += `<div class="card f4"><div class="sec-t" style="margin-bottom:10px">美股空頭倉位（短空比例）</div>`;
+    shortItems.forEach(r => {
+      const pct = Math.min(100, Math.max(0, r.pct || 0));
+      html += `<div class="margin-row">
+        <div class="margin-name">${r.n}</div>
+        <div class="margin-bar-w"><div class="margin-bar-f" style="width:${pct}%;background:var(--up)"></div></div>
+        <div class="margin-val" style="color:var(--txt)">${r.v}</div>
       </div>`;
     });
+    html += `<div style="font-size:11px;color:var(--txt3);margin-top:6px">空頭比例 = 空頭持倉佔流通股比例，越高代表放空力道越強</div>`;
     html += `</div>`;
   }
 
