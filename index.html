@@ -23,7 +23,7 @@
   --font:'Noto Sans TC',sans-serif;
   --mono:'DM Mono',monospace;
   --display:'Barlow Condensed',sans-serif;
-  --nav:60px;--safe-b:env(safe-area-inset-bottom,0px);
+  --nav:60px;--safe-b:env(safe-area-inset-bottom,0px);--ad-h:60px;
 }
 /* tw mode: red=up, blue=down */
 [data-updown="tw"] { --up:#f05060; --upbg:rgba(240,80,96,.12); --dn:#22c87a; --dnbg:rgba(34,200,122,.12); }
@@ -67,7 +67,12 @@ body{color:var(--txt);max-width:430px;margin:0 auto}
 #content{flex:1;overflow:hidden;position:relative}
 .page{position:absolute;inset:0;overflow-y:auto;-webkit-overflow-scrolling:touch;opacity:0;pointer-events:none;transform:translateY(10px);transition:opacity .22s ease,transform .22s ease}
 .page.on{opacity:1;pointer-events:auto;transform:translateY(0)}
-.pg{padding:12px 14px calc(var(--nav) + var(--safe-b) + 14px)}
+.pg{padding:12px 14px calc(var(--nav) + var(--ad-h) + var(--safe-b) + 14px)}
+
+/* ── AD BANNER ── */
+#ad-banner{flex-shrink:0;height:var(--ad-h);background:var(--bg);border-top:1px solid var(--bdr);display:flex;align-items:center;justify-content:center;position:relative;z-index:25;overflow:hidden}
+.ad-placeholder{width:320px;max-width:100%;height:50px;background:var(--bg3);border:1px dashed var(--bdr2);border-radius:6px;display:flex;align-items:center;justify-content:center}
+.ad-placeholder span{font-size:11px;color:var(--txt3);letter-spacing:.06em}
 
 /* ── NAV ── */
 #nav{flex-shrink:0;height:calc(var(--nav) + var(--safe-b));background:var(--bg);border-top:1px solid var(--bdr);display:flex;align-items:flex-start;padding-top:2px;position:relative;z-index:30}
@@ -400,6 +405,14 @@ body{color:var(--txt);max-width:430px;margin:0 auto}
 </div>
 
 </div><!-- /content -->
+
+<!-- AD BANNER — fixed above nav, outside scroll -->
+<div id="ad-banner">
+  <!-- Web fallback (browser); native Capacitor AdMob overlays here -->
+  <div class="ad-placeholder" id="admob-web-placeholder">
+    <span>廣告</span>
+  </div>
+</div>
 
 <!-- NAV -->
 <div id="nav">
@@ -848,6 +861,7 @@ window.addEventListener('DOMContentLoaded', () => {
   renderSentiment('tw');
   renderChips('inst');
   initAI();
+  setTimeout(initAdMob, 800); // AdMob banner（native Capacitor）or web placeholder
   const t = nowTime();
   document.getElementById('sent-time').textContent  = t + ' 更新';
   document.getElementById('chips-time').textContent = t + ' 更新';
@@ -922,6 +936,51 @@ window.addEventListener('DOMContentLoaded', () => {
     } catch(e) {}
   }, 1800000);
 });
+
+// ── ADMOB ─────────────────────────────────────────────────────────
+// Ad Unit IDs (from Google AdMob console)
+const ADMOB_IDS = {
+  appId:    'ca-app-pub-2385853156442197~5265222002',
+  banner:   'ca-app-pub-2385853156442197/2938441562',   // production iOS
+  testBanner: 'ca-app-pub-3940256099942544/2435281174', // iOS test banner
+};
+
+async function initAdMob() {
+  const isNative = typeof window.Capacitor !== 'undefined' && window.Capacitor.isNativePlatform?.();
+  if (!isNative) {
+    // Browser: keep placeholder visible, no real ad
+    return;
+  }
+  // ── Capacitor native environment ──────────────────────────────
+  // Requires: npm install @capacitor-community/admob  (during native build)
+  try {
+    const { AdMob } = window.Capacitor.Plugins;
+    if (!AdMob) { console.log('[AdMob] plugin not found'); return; }
+
+    await AdMob.initialize({ requestTrackingAuthorization: true });
+
+    const adId = ADMOB_IDS.banner; // switch to testBanner during development
+    const navH = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--nav')) || 60;
+
+    await AdMob.showBanner({
+      adId,
+      adSize:   'ADAPTIVE_BANNER',
+      position: 'BOTTOM_CENTER',
+      margin:   navH, // sit above nav bar
+      isTesting: false,
+    });
+
+    // Native banner rendered — hide HTML placeholder
+    const slot = document.getElementById('ad-banner');
+    if (slot) slot.style.background = 'transparent';
+    const ph = document.getElementById('admob-web-placeholder');
+    if (ph) ph.style.display = 'none';
+
+    console.log('[AdMob] banner loaded');
+  } catch(e) {
+    console.log('[AdMob] error:', e.message);
+  }
+}
 
 function nowTime(){ const d=new Date(); return`${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; }
 function nowDateStr(){ const d=new Date(),days=['日','一','二','三','四','五','六']; return`${d.getMonth()+1}/${d.getDate()} 週${days[d.getDay()]}`; }
