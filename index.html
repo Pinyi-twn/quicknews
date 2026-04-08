@@ -1337,7 +1337,7 @@ function renderChipsAll() {
       html += `<div class="margin-row">
         <div class="margin-name">${r.n}</div>
         <div class="margin-bar-w"><div class="margin-bar-f" style="width:${pct}%;background:var(--up)"></div></div>
-        <div class="margin-val" style="color:var(--txt)">${r.v.replace('%','x')}</div>
+        <div class="margin-val" style="color:var(--txt)">${r.v}</div>
       </div>`;
     });
     html += `<div style="font-size:11px;color:var(--txt3);margin-top:6px">空頭比例 = 空頭持倉佔流通股比例，越高代表放空力道越強</div>`;
