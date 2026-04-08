@@ -940,9 +940,11 @@ window.addEventListener('DOMContentLoaded', () => {
 // ── ADMOB ─────────────────────────────────────────────────────────
 // Ad Unit IDs (from Google AdMob console)
 const ADMOB_IDS = {
-  appId:    'ca-app-pub-2385853156442197~5265222002',
-  banner:   'ca-app-pub-2385853156442197/2938441562',   // production iOS
-  testBanner: 'ca-app-pub-3940256099942544/2435281174', // iOS test banner
+  appId:        'ca-app-pub-2385853156442197~5265222002',
+  banner:       'ca-app-pub-2385853156442197/2938441562',    // iOS banner
+  testBanner:   'ca-app-pub-3940256099942544/2435281174',    // iOS test banner
+  rewarded:     'ca-app-pub-2385853156442197/9091314192',    // rewarded interstitial
+  testRewarded: 'ca-app-pub-3940256099942544/1712485313',    // iOS test rewarded
 };
 
 async function initAdMob() {
@@ -977,8 +979,31 @@ async function initAdMob() {
     if (ph) ph.style.display = 'none';
 
     console.log('[AdMob] banner loaded');
+    // Preload rewarded interstitial for AI paywall
+    preloadRewardedAd();
   } catch(e) {
     console.log('[AdMob] error:', e.message);
+  }
+}
+
+// ── ADMOB REWARDED INTERSTITIAL ───────────────────────────────────
+let _rewardedReady = false;
+
+async function preloadRewardedAd() {
+  const isNative = typeof window.Capacitor !== 'undefined' && window.Capacitor.isNativePlatform?.();
+  if (!isNative) return;
+  try {
+    const { AdMob } = window.Capacitor.Plugins;
+    if (!AdMob) return;
+    await AdMob.prepareRewardedInterstitial({
+      adId: ADMOB_IDS.rewarded,   // switch to testRewarded during dev
+      isTesting: false,
+    });
+    _rewardedReady = true;
+    console.log('[AdMob] rewarded interstitial ready');
+  } catch(e) {
+    _rewardedReady = false;
+    console.log('[AdMob] rewarded preload error:', e.message);
   }
 }
 
@@ -1413,12 +1438,48 @@ function isAIUnlocked(blockId){
 function setAIUnlocked(blockId){
   localStorage.setItem('qn_ai_unlock_' + blockId, String(Date.now() + 86400000)); // 24h
 }
-// 廣告模擬（未來接入真實廣告 SDK 時替換此函式）
+// 觀看獎勵廣告：native → AdMob 獎勵式插頁；browser → 確認彈窗模擬
 // blockId: 解鎖哪個區塊；callback: 解鎖後執行的 re-render
-function watchAd(blockId, callback){
-  // TODO: 替換為真實廣告 SDK 呼叫（如 Google AdMob / AdSense）
-  const ok = window.confirm('即將觀看一則廣告（模擬）\n\n點「確定」繼續，廣告結束後解鎖此區塊 AI 解讀。');
-  if(ok){ setTimeout(function(){ setAIUnlocked(blockId); if(callback) callback(); }, 500); }
+function watchAd(blockId, callback) {
+  const isNative = typeof window.Capacitor !== 'undefined' && window.Capacitor.isNativePlatform?.();
+
+  if (isNative && _rewardedReady) {
+    // ── Capacitor native: 真實 AdMob 獎勵式插頁廣告 ──
+    const { AdMob } = window.Capacitor.Plugins;
+    if (!AdMob) { _watchAdFallback(blockId, callback); return; }
+
+    // 監聽「使用者完整觀看，獲得獎勵」事件
+    const rewardListener = AdMob.addListener(
+      'onRewardedInterstitialAdUserEarnedReward',
+      () => {
+        rewardListener.remove();
+        setAIUnlocked(blockId);
+        preloadRewardedAd(); // 預載下一則廣告，確保下次立即可用
+        if (callback) callback();
+      }
+    );
+    // 監聽「廣告關閉但未完整觀看」（使用者跳過）
+    const dismissListener = AdMob.addListener(
+      'onRewardedInterstitialAdDismissed',
+      () => { dismissListener.remove(); preloadRewardedAd(); }
+    );
+
+    _rewardedReady = false;
+    AdMob.showRewardedInterstitial().catch(e => {
+      console.log('[AdMob] show rewarded error:', e.message);
+      rewardListener.remove(); dismissListener.remove();
+      preloadRewardedAd();
+    });
+  } else {
+    // ── 瀏覽器 fallback（或廣告尚未就緒）──
+    _watchAdFallback(blockId, callback);
+    if (isNative && !_rewardedReady) preloadRewardedAd(); // 嘗試預載
+  }
+}
+
+function _watchAdFallback(blockId, callback) {
+  const ok = window.confirm('即將觀看一則獎勵廣告\n觀看完成後，解鎖此區塊 AI 解讀（24 小時有效）。\n\n（瀏覽器模式為模擬，原生 App 將顯示真實廣告）');
+  if (ok) { setTimeout(function(){ setAIUnlocked(blockId); if(callback) callback(); }, 300); }
 }
 // 渲染 AI 解讀卡片：未解鎖時模糊遮蓋（標題保持可見）；解鎖後直接顯示
 // blockId: 每個卡片的唯一識別符（eg. 'tw-chip', 'us-sent', 'sent-fg'）
