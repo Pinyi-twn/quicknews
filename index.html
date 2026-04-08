@@ -253,6 +253,19 @@ body{color:var(--txt);max-width:430px;margin:0 auto}
 /* ── Q&A 廣告提示 ── */
 .qa-gate{text-align:center;padding:16px 12px;background:var(--bg2);border-radius:12px;margin:8px 0}
 .qa-gate-btn{display:inline-flex;align-items:center;gap:5px;background:var(--gold);color:#111;border:none;border-radius:20px;padding:7px 18px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;margin-top:8px}
+/* ── SPONSOR ── */
+.sponsor-card{background:linear-gradient(135deg,rgba(240,192,64,.10) 0%,rgba(240,100,80,.07) 100%);border:1px solid rgba(240,192,64,.22)}
+.sponsor-hd{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.sponsor-hd-ico{font-size:22px;line-height:1}
+.sponsor-hd-txt{font-size:15px;font-weight:700;color:var(--txt)}
+.sponsor-desc{font-size:12.5px;color:var(--txt2);line-height:1.65;margin-bottom:14px}
+.sponsor-tiers{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.sponsor-tier{display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 8px;border-radius:12px;border:1px solid var(--bdr2);background:var(--bg2);cursor:pointer;transition:all .18s;font-family:inherit}
+.sponsor-tier:active{transform:scale(.95);opacity:.85}
+.sponsor-tier-ico{font-size:24px;line-height:1}
+.sponsor-tier-lbl{font-size:13px;font-weight:600;color:var(--txt)}
+.sponsor-tier-price{font-size:12px;color:var(--gold);font-weight:700;font-family:var(--mono)}
+.sponsor-thanks{text-align:center;font-size:11.5px;color:var(--txt3);margin-top:12px;line-height:1.6}
 </style>
 </head>
 <body data-updown="tw">
@@ -389,6 +402,41 @@ body{color:var(--txt);max-width:430px;margin:0 auto}
       </div>
     </div>
   </div>
+  <!-- 贊助區塊 -->
+  <div class="card f3 sponsor-card">
+    <div class="sponsor-hd">
+      <span class="sponsor-hd-ico">🫶</span>
+      <span class="sponsor-hd-txt">贊助速懶報</span>
+    </div>
+    <div class="sponsor-desc">
+      速懶報由一人獨立開發，AI 運算、資料串接都需要持續的成本。<br>
+      如果這款 App 對你有幫助，一杯咖啡的支持都讓我們走得更遠。感謝你！
+    </div>
+    <div class="sponsor-tiers">
+      <button class="sponsor-tier" onclick="sponsorTier('com.quicknews.coffee','請喝咖啡')">
+        <span class="sponsor-tier-ico">☕</span>
+        <span class="sponsor-tier-lbl">請喝咖啡</span>
+        <span class="sponsor-tier-price">NT$ 30</span>
+      </button>
+      <button class="sponsor-tier" onclick="sponsorTier('com.quicknews.bento','請吃便當')">
+        <span class="sponsor-tier-ico">🍱</span>
+        <span class="sponsor-tier-lbl">請吃便當</span>
+        <span class="sponsor-tier-price">NT$ 90</span>
+      </button>
+      <button class="sponsor-tier" onclick="sponsorTier('com.quicknews.supporter','成為支持者')">
+        <span class="sponsor-tier-ico">🌟</span>
+        <span class="sponsor-tier-lbl">成為支持者</span>
+        <span class="sponsor-tier-price">NT$ 270</span>
+      </button>
+      <button class="sponsor-tier" onclick="sponsorTier('com.quicknews.superfan','超級贊助')">
+        <span class="sponsor-tier-ico">💎</span>
+        <span class="sponsor-tier-lbl">超級贊助</span>
+        <span class="sponsor-tier-price">NT$ 540</span>
+      </button>
+    </div>
+    <div class="sponsor-thanks">🦥 謝謝你，你的支持是最大的動力！</div>
+  </div>
+
   <div class="card f3">
     <div class="sec-t" style="margin-bottom:10px">關於速懶報</div>
     <div class="setting-row" style="padding:8px 0"><div class="s-lbl" style="font-size:14px">版本</div><div style="font-family:var(--mono);font-size:12px;color:var(--txt3)">1.0.0 Beta</div></div>
@@ -1014,6 +1062,37 @@ async function preloadRewardedQAAd() {
     _rewardedQAReady = true;
     console.log('[AdMob] Q&A rewarded ready');
   } catch(e) { _rewardedQAReady = false; console.log('[AdMob] Q&A rewarded preload error:', e.message); }
+}
+
+// ── 贊助 / IAP ────────────────────────────────────────────────────
+// StoreKit 2 Product IDs (需在 App Store Connect 建立「消耗性項目」):
+//   com.quicknews.coffee    → NT$30
+//   com.quicknews.bento     → NT$90
+//   com.quicknews.supporter → NT$270
+//   com.quicknews.superfan  → NT$540
+async function sponsorTier(productId, label) {
+  const isNative = typeof window.Capacitor !== 'undefined' && window.Capacitor.isNativePlatform?.();
+  if (!isNative) {
+    // 瀏覽器預覽：提示尚未開放
+    alert(`感謝你想贊助「${label}」！\n\n此功能將在 App Store 版本中透過 Apple IAP 開放。\n敬請期待！ 🦥`);
+    return;
+  }
+  // ── Capacitor native: StoreKit 2 via @capacitor-community/in-app-purchases ──
+  // 安裝: npm install @capacitor-community/in-app-purchases
+  try {
+    const { InAppPurchases } = window.Capacitor.Plugins;
+    if (!InAppPurchases) { alert('購買功能暫未開放，敬請期待！'); return; }
+    const { products } = await InAppPurchases.getProducts({ productIds: [productId] });
+    const product = products?.[0];
+    if (!product) { alert('商品未找到，請稍後再試。'); return; }
+    const result = await InAppPurchases.purchaseProduct({ productId });
+    if (result?.state === 'purchased') {
+      await InAppPurchases.finishTransaction({ transactionId: result.transactionId });
+      alert(`感謝你的「${label}」贊助！🦥❤️\n你的支持讓速懶報走得更遠！`);
+    }
+  } catch(e) {
+    if (e?.code !== 'cancelled') console.log('[IAP] error:', e?.message);
+  }
 }
 
 function nowTime(){ const d=new Date(); return`${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; }
