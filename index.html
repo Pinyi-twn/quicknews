@@ -943,8 +943,9 @@ const ADMOB_IDS = {
   appId:        'ca-app-pub-2385853156442197~5265222002',
   banner:       'ca-app-pub-2385853156442197/2938441562',    // iOS banner
   testBanner:   'ca-app-pub-3940256099942544/2435281174',    // iOS test banner
-  rewarded:     'ca-app-pub-2385853156442197/9091314192',    // rewarded interstitial
-  testRewarded: 'ca-app-pub-3940256099942544/1712485313',    // iOS test rewarded
+  rewarded:     'ca-app-pub-2385853156442197/9091314192',    // AI block rewarded interstitial
+  rewardedQA:   'ca-app-pub-2385853156442197/5543785579',    // Q&A rewarded interstitial
+  testRewarded: 'ca-app-pub-3940256099942544/1712485313',    // iOS test rewarded (both)
 };
 
 async function initAdMob() {
@@ -979,15 +980,17 @@ async function initAdMob() {
     if (ph) ph.style.display = 'none';
 
     console.log('[AdMob] banner loaded');
-    // Preload rewarded interstitial for AI paywall
+    // Preload both rewarded interstitials
     preloadRewardedAd();
+    preloadRewardedQAAd();
   } catch(e) {
     console.log('[AdMob] error:', e.message);
   }
 }
 
 // ── ADMOB REWARDED INTERSTITIAL ───────────────────────────────────
-let _rewardedReady = false;
+let _rewardedReady   = false; // AI 區塊解鎖廣告
+let _rewardedQAReady = false; // Q&A 問答廣告
 
 async function preloadRewardedAd() {
   const isNative = typeof window.Capacitor !== 'undefined' && window.Capacitor.isNativePlatform?.();
@@ -995,16 +998,22 @@ async function preloadRewardedAd() {
   try {
     const { AdMob } = window.Capacitor.Plugins;
     if (!AdMob) return;
-    await AdMob.prepareRewardedInterstitial({
-      adId: ADMOB_IDS.rewarded,   // switch to testRewarded during dev
-      isTesting: false,
-    });
+    await AdMob.prepareRewardedInterstitial({ adId: ADMOB_IDS.rewarded, isTesting: false });
     _rewardedReady = true;
-    console.log('[AdMob] rewarded interstitial ready');
-  } catch(e) {
-    _rewardedReady = false;
-    console.log('[AdMob] rewarded preload error:', e.message);
-  }
+    console.log('[AdMob] AI rewarded ready');
+  } catch(e) { _rewardedReady = false; console.log('[AdMob] AI rewarded preload error:', e.message); }
+}
+
+async function preloadRewardedQAAd() {
+  const isNative = typeof window.Capacitor !== 'undefined' && window.Capacitor.isNativePlatform?.();
+  if (!isNative) return;
+  try {
+    const { AdMob } = window.Capacitor.Plugins;
+    if (!AdMob) return;
+    await AdMob.prepareRewardedInterstitial({ adId: ADMOB_IDS.rewardedQA, isTesting: false });
+    _rewardedQAReady = true;
+    console.log('[AdMob] Q&A rewarded ready');
+  } catch(e) { _rewardedQAReady = false; console.log('[AdMob] Q&A rewarded preload error:', e.message); }
 }
 
 function nowTime(){ const d=new Date(); return`${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; }
@@ -1442,38 +1451,40 @@ function setAIUnlocked(blockId){
 // blockId: 解鎖哪個區塊；callback: 解鎖後執行的 re-render
 function watchAd(blockId, callback) {
   const isNative = typeof window.Capacitor !== 'undefined' && window.Capacitor.isNativePlatform?.();
+  // Q&A 使用獨立廣告單元
+  const isQA      = blockId === 'qa-bonus';
+  const adReady   = isQA ? _rewardedQAReady : _rewardedReady;
+  const preloadFn = isQA ? preloadRewardedQAAd : preloadRewardedAd;
 
-  if (isNative && _rewardedReady) {
+  if (isNative && adReady) {
     // ── Capacitor native: 真實 AdMob 獎勵式插頁廣告 ──
     const { AdMob } = window.Capacitor.Plugins;
     if (!AdMob) { _watchAdFallback(blockId, callback); return; }
 
-    // 監聽「使用者完整觀看，獲得獎勵」事件
     const rewardListener = AdMob.addListener(
       'onRewardedInterstitialAdUserEarnedReward',
       () => {
         rewardListener.remove();
-        setAIUnlocked(blockId);
-        preloadRewardedAd(); // 預載下一則廣告，確保下次立即可用
+        if (isQA) { unlockQABonus(); }
+        else       { setAIUnlocked(blockId); }
+        preloadFn(); // 預載下一則廣告
         if (callback) callback();
       }
     );
-    // 監聽「廣告關閉但未完整觀看」（使用者跳過）
     const dismissListener = AdMob.addListener(
       'onRewardedInterstitialAdDismissed',
-      () => { dismissListener.remove(); preloadRewardedAd(); }
+      () => { dismissListener.remove(); preloadFn(); }
     );
 
-    _rewardedReady = false;
+    if (isQA) _rewardedQAReady = false; else _rewardedReady = false;
     AdMob.showRewardedInterstitial().catch(e => {
       console.log('[AdMob] show rewarded error:', e.message);
       rewardListener.remove(); dismissListener.remove();
-      preloadRewardedAd();
+      preloadFn();
     });
   } else {
-    // ── 瀏覽器 fallback（或廣告尚未就緒）──
     _watchAdFallback(blockId, callback);
-    if (isNative && !_rewardedReady) preloadRewardedAd(); // 嘗試預載
+    if (isNative && !adReady) preloadFn();
   }
 }
 
@@ -1503,16 +1514,26 @@ function renderAICard(opts){
 }
 
 // ── Q&A 次數限制 ──────────────────────────────────────────────────
-// 每次 watchAd 解鎖 3 次問答（不設時效，用完再看廣告）
+// 每天免費 2 次（午夜重置）；看廣告一次額外獲得 3 次
+const QA_FREE_DAILY = 2;
+
+function _qaToday(){ return new Date().toISOString().slice(0,10); }
+function _qaFreeUsedToday(){
+  const today = _qaToday();
+  return localStorage.getItem('qn_qa_free_date') === today
+    ? parseInt(localStorage.getItem('qn_qa_free_used') || '0')
+    : 0; // 日期不同 → 重置
+}
 function getQARemaining(){
-  const free = 3 - Math.min(3, parseInt(localStorage.getItem('qn_qa_free_used') || '0'));
+  const free  = Math.max(0, QA_FREE_DAILY - _qaFreeUsedToday());
   const bonus = parseInt(localStorage.getItem('qn_qa_bonus') || '0');
   return free + bonus;
 }
 function useQAQuestion(){
-  const freeUsed = parseInt(localStorage.getItem('qn_qa_free_used') || '0');
-  if(freeUsed < 3){
-    localStorage.setItem('qn_qa_free_used', String(freeUsed + 1));
+  const usedToday = _qaFreeUsedToday();
+  if(usedToday < QA_FREE_DAILY){
+    localStorage.setItem('qn_qa_free_date', _qaToday());
+    localStorage.setItem('qn_qa_free_used', String(usedToday + 1));
   } else {
     const bonus = parseInt(localStorage.getItem('qn_qa_bonus') || '0');
     if(bonus > 0) localStorage.setItem('qn_qa_bonus', String(bonus - 1));
@@ -1527,9 +1548,9 @@ function showQAGate(){
   if(!chat) return;
   const gate = document.createElement('div');
   gate.className = 'qa-gate'; gate.id = 'qa-gate-msg';
-  gate.innerHTML = `<div style="font-size:12px;color:var(--txt2)">免費問答次數已用完</div>
-    <div style="font-size:10px;color:var(--txt3);margin-top:4px">觀看廣告即可再獲得 3 次問答機會</div>
-    <button class="qa-gate-btn" onclick="watchAd('qa-bonus',function(){unlockQABonus();document.getElementById('qa-gate-msg')?.remove();document.getElementById('ci').focus();})">▶ 觀看廣告解鎖 3 次問答</button>`;
+  gate.innerHTML = `<div style="font-size:13px;font-weight:600;color:var(--txt2)">今日免費問答 ${QA_FREE_DAILY} 次已用完</div>
+    <div style="font-size:11px;color:var(--txt3);margin-top:4px">觀看一則廣告，即可額外獲得 3 次問答機會</div>
+    <button class="qa-gate-btn" onclick="watchAd('qa-bonus',function(){document.getElementById('qa-gate-msg')?.remove();document.getElementById('ci').focus();})">▶ 觀看廣告，解鎖 3 次問答</button>`;
   chat.appendChild(gate);
   setTimeout(() => chat.scrollTop = chat.scrollHeight, 50);
 }
