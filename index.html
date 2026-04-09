@@ -905,18 +905,30 @@ setTimeout(()=>{ _splashData=true; _splashTimer=true; _trySplashHide(); }, 8000)
 window.addEventListener('DOMContentLoaded', () => {
   // ── Safe area JS fallback (WKWebView sometimes needs explicit application)
   (function applySafeAreaTop() {
+    function doApply(inset) {
+      if (inset <= 0) return;
+      const tb = document.getElementById('topbar');
+      if (!tb) return;
+      tb.style.height = (64 + inset) + 'px';
+      tb.style.paddingTop = inset + 'px';
+      document.documentElement.style.setProperty('--safe-t', inset + 'px');
+    }
+    // Method 1: position probe — measures where env(safe-area-inset-top) places an element
     const probe = document.createElement('div');
-    probe.style.cssText = 'position:fixed;top:0;left:0;width:1px;height:env(safe-area-inset-top,0px);pointer-events:none;visibility:hidden';
+    probe.style.cssText = 'position:fixed;top:env(safe-area-inset-top,0px);left:0;width:0;height:0;pointer-events:none;visibility:hidden';
     document.body.appendChild(probe);
-    requestAnimationFrame(() => {
-      const inset = probe.getBoundingClientRect().height;
-      probe.remove();
-      if (inset > 0) {
-        document.documentElement.style.setProperty('--safe-t', inset + 'px');
-        document.getElementById('topbar').style.height = (64 + inset) + 'px';
-        document.getElementById('topbar').style.paddingTop = inset + 'px';
-      }
-    });
+    const fromTop = Math.round(probe.getBoundingClientRect().top);
+    probe.remove();
+    if (fromTop > 0) { doApply(fromTop); return; }
+
+    // Method 2: native screen-size heuristic (WKWebView env() returned 0)
+    const isNative = typeof window.Capacitor !== 'undefined' && window.Capacitor.isNativePlatform?.();
+    if (!isNative) return;
+    const sh = window.screen.height; // CSS logical pixels in portrait
+    const inset = sh >= 852 ? 59   // Dynamic Island (iPhone 14 Pro+ / 15+ / 16+ / 17+)
+                : sh >= 812 ? 47   // Notch (iPhone X ~ 14)
+                : 20;              // Legacy
+    doApply(inset);
   })();
 
   // ① 立刻用靜態資料渲染，確保畫面有內容
