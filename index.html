@@ -1037,7 +1037,8 @@ const ADMOB_IDS = {
   testBanner:   'ca-app-pub-3940256099942544/2435281174',    // iOS test banner
   rewarded:     'ca-app-pub-2385853156442197/9091314192',    // AI block rewarded interstitial
   rewardedQA:   'ca-app-pub-2385853156442197/5543785579',    // Q&A rewarded interstitial
-  testRewarded: 'ca-app-pub-3940256099942544/1712485313',    // iOS test rewarded (both)
+  testRewarded: 'ca-app-pub-3940256099942544/1712485313',    // iOS test rewarded video
+  testRewardedInterstitial: 'ca-app-pub-3940256099942544/6978759866', // iOS test rewarded interstitial
 };
 
 async function initAdMob() {
@@ -1088,10 +1089,10 @@ async function preloadRewardedAd() {
   try {
     const { AdMob } = window.Capacitor.Plugins;
     if (!AdMob) return;
-    await AdMob.prepareRewardedInterstitial({ adId: ADMOB_IDS.testRewarded, isTesting: true });
+    await AdMob.prepareRewardedInterstitial({ adId: ADMOB_IDS.testRewardedInterstitial, isTesting: true });
     _rewardedReady = true;
     console.log('[AdMob] AI rewarded ready');
-  } catch(e) { _rewardedReady = false; console.log('[AdMob] AI rewarded preload error:', e.message); }
+  } catch(e) { _rewardedReady = false; console.error('[AdMob] AI rewarded preload error:', e.message, e); }
 }
 
 async function preloadRewardedQAAd() {
@@ -1100,7 +1101,7 @@ async function preloadRewardedQAAd() {
   try {
     const { AdMob } = window.Capacitor.Plugins;
     if (!AdMob) return;
-    await AdMob.prepareRewardedInterstitial({ adId: ADMOB_IDS.testRewarded, isTesting: true });
+    await AdMob.prepareRewardedInterstitial({ adId: ADMOB_IDS.testRewardedInterstitial, isTesting: true });
     _rewardedQAReady = true;
     console.log('[AdMob] Q&A rewarded ready');
   } catch(e) { _rewardedQAReady = false; console.log('[AdMob] Q&A rewarded preload error:', e.message); }
