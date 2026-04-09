@@ -904,7 +904,7 @@ setTimeout(()=>{ _splashData=true; _splashTimer=true; _trySplashHide(); }, 8000)
 // ── INIT ─────────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', () => {
   // ── Safe area JS fallback (WKWebView sometimes needs explicit application)
-  (function applySafeAreaTop() {
+  (function() {
     function doApply(inset) {
       if (inset <= 0) return;
       const tb = document.getElementById('topbar');
@@ -913,22 +913,38 @@ window.addEventListener('DOMContentLoaded', () => {
       tb.style.paddingTop = inset + 'px';
       document.documentElement.style.setProperty('--safe-t', inset + 'px');
     }
-    // Method 1: position probe — measures where env(safe-area-inset-top) places an element
-    const probe = document.createElement('div');
-    probe.style.cssText = 'position:fixed;top:env(safe-area-inset-top,0px);left:0;width:0;height:0;pointer-events:none;visibility:hidden';
-    document.body.appendChild(probe);
-    const fromTop = Math.round(probe.getBoundingClientRect().top);
-    probe.remove();
-    if (fromTop > 0) { doApply(fromTop); return; }
+    function probeEnv() {
+      const p = document.createElement('div');
+      p.style.cssText = 'position:fixed;top:env(safe-area-inset-top,0px);left:0;width:0;height:0;pointer-events:none;visibility:hidden';
+      document.body.appendChild(p);
+      const v = Math.round(p.getBoundingClientRect().top);
+      p.remove();
+      return v;
+    }
 
-    // Method 2: native screen-size heuristic (WKWebView env() returned 0)
-    const isNative = typeof window.Capacitor !== 'undefined' && window.Capacitor.isNativePlatform?.();
-    if (!isNative) return;
-    const sh = window.screen.height; // CSS logical pixels in portrait
-    const inset = sh >= 852 ? 59   // Dynamic Island (iPhone 14 Pro+ / 15+ / 16+ / 17+)
-                : sh >= 812 ? 47   // Notch (iPhone X ~ 14)
-                : 20;              // Legacy
-    doApply(inset);
+    // Attempt 1 at DOMContentLoaded: try env() probe, fall back to screen heuristic
+    const fromTop = probeEnv();
+    if (fromTop > 0) {
+      doApply(fromTop);
+    } else {
+      // env() not ready yet — use screen-size heuristic as initial approximation
+      const isNative = typeof window.Capacitor !== 'undefined' && window.Capacitor.isNativePlatform?.();
+      if (isNative) {
+        const sh = window.screen.height;
+        // iOS 26 (iPhone 17+): 62px  |  iOS 18 Dynamic Island: 59px  |  Notch: 47px
+        const inset = sh >= 900 ? 62   // iPhone 17 Pro Max / 16 Pro Max (screen.h=956)
+                    : sh >= 852 ? 59   // iPhone 14-17 Pro (screen.h=852~874)
+                    : sh >= 812 ? 47   // Notch iPhones
+                    : 20;
+        doApply(inset);
+      }
+    }
+
+    // Attempt 2 after 600ms: env() should now be accurate — correct if different
+    setTimeout(() => {
+      const accurate = probeEnv();
+      if (accurate > 0) doApply(accurate);
+    }, 600);
   })();
 
   // ① 立刻用靜態資料渲染，確保畫面有內容
