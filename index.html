@@ -1046,7 +1046,7 @@ async function preloadRewardedAd() {
   try {
     const { AdMob } = window.Capacitor.Plugins;
     if (!AdMob) return;
-    await AdMob.prepareRewardedInterstitial({ adId: ADMOB_IDS.rewarded, isTesting: false });
+    await AdMob.prepareRewardedInterstitial({ adId: ADMOB_IDS.rewarded, isTesting: true });
     _rewardedReady = true;
     console.log('[AdMob] AI rewarded ready');
   } catch(e) { _rewardedReady = false; console.log('[AdMob] AI rewarded preload error:', e.message); }
@@ -1058,7 +1058,7 @@ async function preloadRewardedQAAd() {
   try {
     const { AdMob } = window.Capacitor.Plugins;
     if (!AdMob) return;
-    await AdMob.prepareRewardedInterstitial({ adId: ADMOB_IDS.rewardedQA, isTesting: false });
+    await AdMob.prepareRewardedInterstitial({ adId: ADMOB_IDS.rewardedQA, isTesting: true });
     _rewardedQAReady = true;
     console.log('[AdMob] Q&A rewarded ready');
   } catch(e) { _rewardedQAReady = false; console.log('[AdMob] Q&A rewarded preload error:', e.message); }
@@ -1568,6 +1568,20 @@ function watchAd(blockId, callback) {
 }
 
 function _watchAdFallback(blockId, callback) {
+  const isNative = typeof window.Capacitor !== 'undefined' && window.Capacitor.isNativePlatform?.();
+  if (isNative) {
+    // WKWebView 不支援 window.confirm()，改用自訂提示
+    const el = document.createElement('div');
+    el.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center';
+    el.innerHTML = `<div style="background:var(--bg2);border:1px solid var(--bdr2);border-radius:18px;padding:24px 20px;max-width:300px;text-align:center">
+      <div style="font-size:16px;font-weight:700;margin-bottom:8px">廣告載入中</div>
+      <div style="font-size:13px;color:var(--txt2);line-height:1.6;margin-bottom:20px">廣告尚未就緒，請稍後再點選，或重新開啟頁面。</div>
+      <button onclick="this.closest('[style]').remove()" style="background:var(--gold);color:#1a1c2a;font-weight:700;border:none;border-radius:10px;padding:10px 28px;font-size:14px;cursor:pointer">確定</button>
+    </div>`;
+    document.body.appendChild(el);
+    return;
+  }
+  // Browser: simulate with confirm dialog
   const ok = window.confirm('即將觀看一則獎勵廣告\n觀看完成後，解鎖此區塊 AI 解讀（24 小時有效）。\n\n（瀏覽器模式為模擬，原生 App 將顯示真實廣告）');
   if (ok) { setTimeout(function(){ setAIUnlocked(blockId); if(callback) callback(); }, 300); }
 }
@@ -1638,6 +1652,20 @@ function showQAGate(){
 function initAI(){
   document.getElementById('qpills').innerHTML=QUICK_QS.map(q=>`<div class="qpill" onclick="askQ('${q}')">${q}</div>`).join('');
   addMsg('ai','您好！我是 **速懶報 QuickNews** AI 助理 🦥⚡\n\n專精台股與美股，擅長市場情緒分析、三大法人籌碼解讀。有什麼想問的嗎？');
+  // 鍵盤彈出時調整 Q&A 頁面底部，避免輸入框被遮住
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', function() {
+      const pg = document.getElementById('pg-ai');
+      if (!pg) return;
+      const keyboardH = window.innerHeight - window.visualViewport.height;
+      if (keyboardH > 80) {
+        pg.style.bottom = keyboardH + 'px';
+        setTimeout(() => { const cs = document.getElementById('chat-scroll'); if(cs) cs.scrollTop = cs.scrollHeight; }, 100);
+      } else {
+        pg.style.bottom = '';
+      }
+    });
+  }
 }
 function addMsg(role,text){
   const wrap=document.createElement('div');wrap.className=`msg-row ${role}`;
