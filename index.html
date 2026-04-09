@@ -1089,7 +1089,7 @@ async function preloadRewardedAd() {
   try {
     const { AdMob } = window.Capacitor.Plugins;
     if (!AdMob) return;
-    await AdMob.prepareRewardedInterstitial({ adId: ADMOB_IDS.testRewardedInterstitial, isTesting: true });
+    await AdMob.prepareRewardInterstitialAd({ adId: ADMOB_IDS.testRewardedInterstitial, isTesting: true });
     _rewardedReady = true;
     console.log('[AdMob] AI rewarded ready');
   } catch(e) { _rewardedReady = false; console.error('[AdMob] AI rewarded preload error:', e.message, e); }
@@ -1101,10 +1101,10 @@ async function preloadRewardedQAAd() {
   try {
     const { AdMob } = window.Capacitor.Plugins;
     if (!AdMob) return;
-    await AdMob.prepareRewardedInterstitial({ adId: ADMOB_IDS.testRewardedInterstitial, isTesting: true });
+    await AdMob.prepareRewardInterstitialAd({ adId: ADMOB_IDS.testRewardedInterstitial, isTesting: true });
     _rewardedQAReady = true;
     console.log('[AdMob] Q&A rewarded ready');
-  } catch(e) { _rewardedQAReady = false; console.log('[AdMob] Q&A rewarded preload error:', e.message); }
+  } catch(e) { _rewardedQAReady = false; console.error('[AdMob] Q&A rewarded preload error:', e.message, e); }
 }
 
 // ── 贊助 / IAP ────────────────────────────────────────────────────
@@ -1584,7 +1584,7 @@ function watchAd(blockId, callback) {
     if (!AdMob) { _watchAdFallback(blockId, callback); return; }
 
     const rewardListener = AdMob.addListener(
-      'onRewardedInterstitialAdUserEarnedReward',
+      'RewardInterstitialAdUserEarnedReward',
       () => {
         rewardListener.remove();
         if (isQA) { unlockQABonus(); }
@@ -1594,12 +1594,12 @@ function watchAd(blockId, callback) {
       }
     );
     const dismissListener = AdMob.addListener(
-      'onRewardedInterstitialAdDismissed',
+      'RewardInterstitialAdDismissed',
       () => { dismissListener.remove(); preloadFn(); }
     );
 
     if (isQA) _rewardedQAReady = false; else _rewardedReady = false;
-    AdMob.showRewardedInterstitial().catch(e => {
+    AdMob.showRewardInterstitialAd().catch(e => {
       console.log('[AdMob] show rewarded error:', e.message);
       rewardListener.remove(); dismissListener.remove();
       preloadFn();
