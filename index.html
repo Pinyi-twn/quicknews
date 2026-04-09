@@ -1589,19 +1589,18 @@ function watchAd(blockId, callback) {
         rewardListener.remove();
         if (isQA) { unlockQABonus(); }
         else       { setAIUnlocked(blockId); }
-        preloadFn(); // 預載下一則廣告
         if (callback) callback();
       }
     );
-    const dismissListener = AdMob.addListener(
-      'RewardInterstitialAdDismissed',
-      () => { dismissListener.remove(); preloadFn(); }
+    const closedListener = AdMob.addListener(
+      'RewardInterstitialAdClosed',
+      () => { closedListener.remove(); preloadFn(); }
     );
 
     if (isQA) _rewardedQAReady = false; else _rewardedReady = false;
     AdMob.showRewardInterstitialAd().catch(e => {
       console.log('[AdMob] show rewarded error:', e.message);
-      rewardListener.remove(); dismissListener.remove();
+      rewardListener.remove(); closedListener.remove();
       preloadFn();
     });
   } else {
