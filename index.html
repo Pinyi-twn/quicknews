@@ -1047,37 +1047,35 @@ async function initAdMob() {
     return;
   }
   // ── Capacitor native environment ──────────────────────────────
-  // Requires: npm install @capacitor-community/admob  (during native build)
+  const { AdMob } = window.Capacitor.Plugins;
+  if (!AdMob) { console.log('[AdMob] plugin not found'); return; }
+
+  // Initialize AdMob (separate try so banner failure doesn't block rewarded preload)
   try {
-    const { AdMob } = window.Capacitor.Plugins;
-    if (!AdMob) { console.log('[AdMob] plugin not found'); return; }
-
     await AdMob.initialize({ requestTrackingAuthorization: true });
+  } catch(e) { console.log('[AdMob] init error:', e.message); }
 
-    const adId = ADMOB_IDS.banner; // switch to testBanner during development
+  // Show banner
+  try {
+    const adId = ADMOB_IDS.banner;
     const navH = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--nav')) || 60;
-
     await AdMob.showBanner({
       adId,
       adSize:   'ADAPTIVE_BANNER',
       position: 'BOTTOM_CENTER',
-      margin:   navH, // sit above nav bar
+      margin:   navH,
       isTesting: false,
     });
-
-    // Native banner rendered — hide HTML placeholder
     const slot = document.getElementById('ad-banner');
     if (slot) slot.style.background = 'transparent';
     const ph = document.getElementById('admob-web-placeholder');
     if (ph) ph.style.display = 'none';
-
     console.log('[AdMob] banner loaded');
-    // Preload both rewarded interstitials
-    preloadRewardedAd();
-    preloadRewardedQAAd();
-  } catch(e) {
-    console.log('[AdMob] error:', e.message);
-  }
+  } catch(e) { console.log('[AdMob] banner error:', e.message); }
+
+  // Always preload rewarded ads regardless of banner status
+  preloadRewardedAd();
+  preloadRewardedQAAd();
 }
 
 // ── ADMOB REWARDED INTERSTITIAL ───────────────────────────────────
@@ -1090,7 +1088,7 @@ async function preloadRewardedAd() {
   try {
     const { AdMob } = window.Capacitor.Plugins;
     if (!AdMob) return;
-    await AdMob.prepareRewardedInterstitial({ adId: ADMOB_IDS.rewarded, isTesting: true });
+    await AdMob.prepareRewardedInterstitial({ adId: ADMOB_IDS.testRewarded, isTesting: true });
     _rewardedReady = true;
     console.log('[AdMob] AI rewarded ready');
   } catch(e) { _rewardedReady = false; console.log('[AdMob] AI rewarded preload error:', e.message); }
@@ -1102,7 +1100,7 @@ async function preloadRewardedQAAd() {
   try {
     const { AdMob } = window.Capacitor.Plugins;
     if (!AdMob) return;
-    await AdMob.prepareRewardedInterstitial({ adId: ADMOB_IDS.rewardedQA, isTesting: true });
+    await AdMob.prepareRewardedInterstitial({ adId: ADMOB_IDS.testRewarded, isTesting: true });
     _rewardedQAReady = true;
     console.log('[AdMob] Q&A rewarded ready');
   } catch(e) { _rewardedQAReady = false; console.log('[AdMob] Q&A rewarded preload error:', e.message); }
