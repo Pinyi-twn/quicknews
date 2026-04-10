@@ -1569,51 +1569,46 @@ function setAIUnlocked(blockId){
 }
 // 觀看獎勵廣告：native → AdMob 獎勵式插頁；browser → 確認彈窗模擬
 // blockId: 解鎖哪個區塊；callback: 解鎖後執行的 re-render
-function watchAd(blockId, callback) {
+async function watchAd(blockId, callback) {
   const isNative = typeof window.Capacitor !== 'undefined' && window.Capacitor.isNativePlatform?.();
   const isQA = blockId === 'qa-bonus';
-  console.error('[AdMob] watchAd called, blockId=' + blockId + ' ready=' + _rewardedReady + ' loading=' + _rewardedLoading);
+  console.error('[AdMob] watchAd blockId=' + blockId + ' ready=' + _rewardedReady + ' loading=' + _rewardedLoading);
 
   if (isNative && _rewardedReady) {
     // ── Capacitor native: 真實 AdMob 獎勵式插頁廣告 ──
     const { AdMob } = window.Capacitor.Plugins;
     if (!AdMob) { _watchAdFallback(blockId, callback); return; }
 
-    // 監聽所有可能的 reward 事件名稱（debug 用）
-    const evNames = ['RewardInterstitialAdUserEarnedReward','RewardInterstitialAdRewarded',
-                     'onRewardInterstitialAdUserEarnedReward','AdMobRewardInterstitialAdUserEarnedReward'];
-    const dbgListeners = evNames.map(ev => AdMob.addListener(ev, (d) => {
-      console.error('[AdMob] REWARD EVENT FIRED:', ev, JSON.stringify(d));
-    }));
+    // await addListener → 取得真正的 PluginListenerHandle，才能呼叫 .remove()
+    let rewardHandle, closedHandle;
+    let earnedHandled = false; // 防止重複觸發
 
-    const rewardListener = AdMob.addListener(
+    rewardHandle = await AdMob.addListener(
       'RewardInterstitialAdUserEarnedReward',
       (data) => {
+        if (earnedHandled) return;
+        earnedHandled = true;
         console.error('[AdMob] REWARD EARNED blockId=' + blockId, JSON.stringify(data));
-        rewardListener.remove();
-        dbgListeners.forEach(l => l.remove());
         if (isQA) { unlockQABonus(); }
         else       { setAIUnlocked(blockId); }
         if (callback) callback();
       }
     );
-    const closedListener = AdMob.addListener(
+    closedHandle = await AdMob.addListener(
       'RewardInterstitialAdClosed',
       () => {
-        console.error('[AdMob] AD CLOSED');
-        closedListener.remove();
-        dbgListeners.forEach(l => l.remove());
+        console.error('[AdMob] AD CLOSED earned=' + earnedHandled);
+        if (rewardHandle) rewardHandle.remove();
+        if (closedHandle) closedHandle.remove();
         preloadRewardedAd();
       }
     );
 
     _rewardedReady = false;
-    AdMob.showRewardInterstitialAd().then(() => {
-      console.error('[AdMob] showRewardInterstitialAd resolved');
-    }).catch(e => {
-      console.error('[AdMob] show rewarded error:', e.message, e);
-      rewardListener.remove(); closedListener.remove();
-      dbgListeners.forEach(l => l.remove());
+    AdMob.showRewardInterstitialAd().catch(e => {
+      console.error('[AdMob] show error:', e.message, e);
+      if (rewardHandle) rewardHandle.remove();
+      if (closedHandle) closedHandle.remove();
       preloadRewardedAd();
     });
   } else {
