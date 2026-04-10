@@ -378,6 +378,10 @@ body{color:var(--txt);max-width:430px;margin:0 auto}
       <div><div class="s-lbl">早報推播通知</div><div class="s-sub">每日 07:30 推送</div></div>
       <div class="toggle" id="notif-tog" onclick="toggleDailyNotif(this)"><div class="toggle-k"></div></div>
     </div>
+    <div class="setting-row" id="notif-test-row" style="display:none">
+      <div><div class="s-lbl" style="color:var(--txt3)">通知測試</div><div class="s-sub">10 秒後發送測試通知</div></div>
+      <button onclick="testNotif()" style="font-size:12px;padding:5px 12px;border-radius:8px;border:1px solid var(--bdr2);background:var(--bg2);color:var(--txt2);cursor:pointer;font-family:inherit">發送</button>
+    </div>
     <!-- 漲跌顏色切換 -->
     <div class="setting-row" style="border-bottom:none">
       <div>
@@ -1042,6 +1046,31 @@ function initNotifToggle() {
   if (!tog) return;
   const enabled = localStorage.getItem('qn_notif') === '1';
   if (enabled) tog.classList.add('on'); else tog.classList.remove('on');
+  // 只在 native 環境顯示測試按鈕
+  const isNative = typeof window.Capacitor !== 'undefined' && window.Capacitor.isNativePlatform?.();
+  const testRow = document.getElementById('notif-test-row');
+  if (isNative && testRow) testRow.style.display = '';
+}
+
+async function testNotif() {
+  const { LocalNotifications } = window.Capacitor?.Plugins || {};
+  if (!LocalNotifications) { alert('LocalNotifications plugin 未安裝'); return; }
+  const fire = new Date(Date.now() + 10000); // 10 秒後
+  try {
+    await LocalNotifications.schedule({
+      notifications: [{
+        id:    999,
+        title: '速懶報 — 通知測試 ✅',
+        body:  '通知功能正常！每日 07:30 早報推播已就緒。',
+        schedule: { at: fire },
+        sound: 'default',
+        extra: null,
+      }]
+    });
+    alert('測試通知已排程，10 秒後會出現（請先將 App 切到背景）');
+  } catch(e) {
+    alert('排程失敗：' + e.message);
+  }
 }
 
 async function toggleDailyNotif(togEl) {
