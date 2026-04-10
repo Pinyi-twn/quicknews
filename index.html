@@ -376,7 +376,7 @@ body{color:var(--txt);max-width:430px;margin:0 auto}
     </div>
     <div class="setting-row">
       <div><div class="s-lbl">早報推播通知</div><div class="s-sub">每日 07:30 推送</div></div>
-      <div class="toggle on" onclick="this.classList.toggle('on')"><div class="toggle-k"></div></div>
+      <div class="toggle" id="notif-tog" onclick="toggleDailyNotif(this)"><div class="toggle-k"></div></div>
     </div>
     <!-- 漲跌顏色切換 -->
     <div class="setting-row" style="border-bottom:none">
@@ -1027,7 +1027,99 @@ window.addEventListener('DOMContentLoaded', () => {
       if (us) { liveUSData = us; }
     } catch(e) {}
   }, 1800000);
+
+  // 初始化通知 toggle 狀態
+  initNotifToggle();
 });
+
+// ── 每日早報本地通知 ─────────────────────────────────────────────
+// 使用 @capacitor/local-notifications（無需後端伺服器）
+// 安裝: npm install @capacitor/local-notifications && npx cap sync ios
+const NOTIF_ID = 730; // 固定 ID，方便取消舊通知
+
+function initNotifToggle() {
+  const tog = document.getElementById('notif-tog');
+  if (!tog) return;
+  const enabled = localStorage.getItem('qn_notif') === '1';
+  if (enabled) tog.classList.add('on'); else tog.classList.remove('on');
+}
+
+async function toggleDailyNotif(togEl) {
+  const isNative = typeof window.Capacitor !== 'undefined' && window.Capacitor.isNativePlatform?.();
+  if (!isNative) {
+    // 瀏覽器預覽：只切換視覺
+    togEl.classList.toggle('on');
+    return;
+  }
+
+  const { LocalNotifications } = window.Capacitor.Plugins;
+  if (!LocalNotifications) {
+    alert('本裝置不支援本地通知');
+    return;
+  }
+
+  const nowEnabled = togEl.classList.contains('on');
+
+  if (nowEnabled) {
+    // 目前開啟 → 關閉
+    try {
+      await LocalNotifications.cancel({ notifications: [{ id: NOTIF_ID }] });
+    } catch(e) { console.error('[Notif] cancel error:', e.message); }
+    togEl.classList.remove('on');
+    localStorage.setItem('qn_notif', '0');
+    console.log('[Notif] cancelled');
+  } else {
+    // 目前關閉 → 開啟：先請求權限
+    let permission = 'granted';
+    try {
+      const { display } = await LocalNotifications.checkPermissions();
+      if (display !== 'granted') {
+        const result = await LocalNotifications.requestPermissions();
+        permission = result.display;
+      }
+    } catch(e) { permission = 'denied'; }
+
+    if (permission !== 'granted') {
+      alert('請在 iOS 設定 → 通知 → 速懶報，開啟通知權限。');
+      return;
+    }
+
+    // 排程每日 07:30 重複通知
+    await _scheduleDaily();
+    togEl.classList.add('on');
+    localStorage.setItem('qn_notif', '1');
+    console.log('[Notif] scheduled daily 07:30');
+  }
+}
+
+async function _scheduleDaily() {
+  const { LocalNotifications } = window.Capacitor.Plugins;
+
+  // 先取消舊的，避免重複
+  try { await LocalNotifications.cancel({ notifications: [{ id: NOTIF_ID }] }); } catch(e) {}
+
+  // 計算下一個 07:30
+  const now   = new Date();
+  const fire  = new Date();
+  fire.setHours(7, 30, 0, 0);
+  if (fire <= now) fire.setDate(fire.getDate() + 1); // 若今天 07:30 已過，明天
+
+  await LocalNotifications.schedule({
+    notifications: [{
+      id:         NOTIF_ID,
+      title:      '速懶報 AI 財經早報 📊',
+      body:       '今日台股 + 美股 AI 分析已更新，點此查看今日重點！',
+      schedule: {
+        at:        fire,
+        repeats:   true,
+        every:     'day',
+      },
+      sound:      'default',
+      actionTypeId: '',
+      extra:      null,
+    }]
+  });
+}
 
 // ── ADMOB ─────────────────────────────────────────────────────────
 // Ad Unit IDs (from Google AdMob console)
