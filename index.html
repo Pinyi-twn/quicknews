@@ -1125,33 +1125,48 @@ function _setWatchBtnsState(loading) {
 }
 
 // ── 贊助 / IAP ────────────────────────────────────────────────────
-// StoreKit 2 Product IDs (需在 App Store Connect 建立「消耗性項目」):
+// StoreKit 2 Product IDs（需在 App Store Connect 建立「消耗性項目」）:
 //   com.quicknews.coffee    → NT$30
 //   com.quicknews.bento     → NT$90
 //   com.quicknews.supporter → NT$270
 //   com.quicknews.superfan  → NT$540
+// 安裝: npm install @capgo/native-purchases && npx cap sync ios
 async function sponsorTier(productId, label) {
   const isNative = typeof window.Capacitor !== 'undefined' && window.Capacitor.isNativePlatform?.();
   if (!isNative) {
-    // 瀏覽器預覽：提示尚未開放
     alert(`感謝你想贊助「${label}」！\n\n此功能將在 App Store 版本中透過 Apple IAP 開放。\n敬請期待！ 🦥`);
     return;
   }
-  // ── Capacitor native: StoreKit 2 via @capacitor-community/in-app-purchases ──
-  // 安裝: npm install @capacitor-community/in-app-purchases
   try {
-    const { InAppPurchases } = window.Capacitor.Plugins;
-    if (!InAppPurchases) { alert('購買功能暫未開放，敬請期待！'); return; }
-    const { products } = await InAppPurchases.getProducts({ productIds: [productId] });
-    const product = products?.[0];
-    if (!product) { alert('商品未找到，請稍後再試。'); return; }
-    const result = await InAppPurchases.purchaseProduct({ productId });
-    if (result?.state === 'purchased') {
-      await InAppPurchases.finishTransaction({ transactionId: result.transactionId });
-      alert(`感謝你的「${label}」贊助！🦥❤️\n你的支持讓速懶報走得更遠！`);
+    const { NativePurchases } = window.Capacitor.Plugins;
+    if (!NativePurchases) {
+      alert('購買功能暫未開放，敬請期待！');
+      return;
     }
+    // 取得商品資訊（含 App Store 真實價格）
+    const { products } = await NativePurchases.getProducts({
+      productIdentifiers: [productId],
+      productType: 'inapp'
+    });
+    const product = products?.[0];
+    if (!product) { alert('商品資訊載入失敗，請稍後再試。'); return; }
+
+    // 發起 StoreKit 購買（autoAcknowledgePurchases 預設 true，無需手動 finish）
+    await NativePurchases.purchaseProduct({
+      productIdentifier: productId,
+      productType: 'inapp',
+      quantity: 1
+    });
+
+    // 購買成功（用戶取消會 throw，不會到這裡）
+    alert(`感謝你的「${label}」贊助！🦥❤️\n你的支持讓速懶報走得更遠！`);
   } catch(e) {
-    if (e?.code !== 'cancelled') console.log('[IAP] error:', e?.message);
+    // 用戶取消購買：靜默處理
+    const msg = e?.message || e?.code || '';
+    if (!msg.toLowerCase().includes('cancel') && !msg.toLowerCase().includes('cancelled')) {
+      console.error('[IAP] error:', msg, e);
+      alert('購買過程發生錯誤，請稍後再試。');
+    }
   }
 }
 
