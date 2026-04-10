@@ -1574,47 +1574,69 @@ async function watchAd(blockId, callback) {
   const isQA = blockId === 'qa-bonus';
   console.error('[AdMob] watchAd blockId=' + blockId + ' ready=' + _rewardedReady + ' loading=' + _rewardedLoading);
 
-  if (isNative && _rewardedReady) {
-    // ── Capacitor native: 真實 AdMob 獎勵式插頁廣告 ──
-    const { AdMob } = window.Capacitor.Plugins;
-    if (!AdMob) { _watchAdFallback(blockId, callback); return; }
+  if (!isNative) { _watchAdFallback(blockId, callback); return; }
 
-    let rewardHandle, dismissHandle;
-    let earnedHandled = false;
+  const { AdMob } = window.Capacitor.Plugins;
+  if (!AdMob)       { _watchAdFallback(blockId, callback); return; }
 
-    function doUnlock() {
-      if (earnedHandled) return;
-      earnedHandled = true;
-      console.error('[AdMob] REWARD UNLOCK blockId=' + blockId);
-      if (isQA) { unlockQABonus(); }
-      else       { setAIUnlocked(blockId); }
-      if (callback) callback();
-    }
-    function doCleanup() {
-      if (rewardHandle) rewardHandle.remove();
-      if (dismissHandle) dismissHandle.remove();
-      preloadRewardedAd();
-    }
-
-    // 正確事件名稱（@capacitor-community/admob 使用 on 前綴）
-    rewardHandle  = await AdMob.addListener('onRewardedInterstitialAdReward',    (d) => { console.error('[AdMob] onRewardedInterstitialAdReward', JSON.stringify(d)); doUnlock(); });
-    dismissHandle = await AdMob.addListener('onRewardedInterstitialAdDismissed', ()  => { console.error('[AdMob] onRewardedInterstitialAdDismissed'); doCleanup(); });
-
-    _rewardedReady = false;
-    // showRewardInterstitialAd() 的 Promise 解析時也帶有獎勵資訊，作為雙重保險
-    AdMob.showRewardInterstitialAd()
-      .then((rewardItem) => {
-        console.error('[AdMob] showRewardInterstitialAd resolved', JSON.stringify(rewardItem));
-        doUnlock(); // 若 event 未觸發，Promise 解析時補發解鎖
-      })
-      .catch(e => {
-        console.error('[AdMob] show error:', e.message, e);
-        doCleanup();
-      });
-  } else {
-    _watchAdFallback(blockId, callback);
-    if (isNative && !_rewardedReady) preloadRewardedAd();
+  // 廣告載入中：等待 onRewardedInterstitialAdLoaded 後自動播放（不顯示錯誤）
+  if (!_rewardedReady && _rewardedLoading) {
+    console.error('[AdMob] ad loading, waiting for onRewardedInterstitialAdLoaded...');
+    const waitHandle = await AdMob.addListener('onRewardedInterstitialAdLoaded', () => {
+      waitHandle.remove();
+      clearTimeout(waitTimeout);
+      watchAd(blockId, callback); // 載入完成後自動重試
+    });
+    // 10 秒逾時才顯示錯誤
+    const waitTimeout = setTimeout(() => {
+      waitHandle.remove();
+      _watchAdFallback(blockId, callback);
+    }, 10000);
+    return;
   }
+
+  if (!_rewardedReady) {
+    _watchAdFallback(blockId, callback);
+    preloadRewardedAd();
+    return;
+  }
+
+  // ── 廣告已就緒：播放 ──
+  let rewardHandle, dismissHandle;
+  let earnedHandled = false;
+  let cleanedUp     = false;
+
+  function doUnlock() {
+    if (earnedHandled) return;
+    earnedHandled = true;
+    console.error('[AdMob] REWARD UNLOCK blockId=' + blockId);
+    if (isQA) { unlockQABonus(); }
+    else       { setAIUnlocked(blockId); }
+    if (callback) callback();
+  }
+  function doCleanup() {
+    if (cleanedUp) return;
+    cleanedUp = true;
+    if (rewardHandle)  rewardHandle.remove();
+    if (dismissHandle) dismissHandle.remove();
+    preloadRewardedAd(); // 重新預載下一則
+  }
+
+  rewardHandle  = await AdMob.addListener('onRewardedInterstitialAdReward',    (d) => { console.error('[AdMob] reward', JSON.stringify(d)); doUnlock(); });
+  dismissHandle = await AdMob.addListener('onRewardedInterstitialAdDismissed', ()  => { console.error('[AdMob] dismissed'); doCleanup(); });
+
+  _rewardedReady = false;
+  AdMob.showRewardInterstitialAd()
+    .then((rewardItem) => {
+      console.error('[AdMob] show resolved', JSON.stringify(rewardItem));
+      // Promise 解析帶有獎勵資訊時也觸發解鎖（雙重保險）
+      if (rewardItem && (rewardItem.amount > 0 || rewardItem.type)) doUnlock();
+      doCleanup(); // 確保 dismiss 事件未觸發時也能重新預載
+    })
+    .catch(e => {
+      console.error('[AdMob] show error:', e.message, e);
+      doCleanup();
+    });
 }
 
 function _watchAdFallback(blockId, callback) {
