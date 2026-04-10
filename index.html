@@ -1579,38 +1579,38 @@ async function watchAd(blockId, callback) {
     const { AdMob } = window.Capacitor.Plugins;
     if (!AdMob) { _watchAdFallback(blockId, callback); return; }
 
-    // await addListener → 取得真正的 PluginListenerHandle，才能呼叫 .remove()
-    let rewardHandle, closedHandle;
-    let earnedHandled = false; // 防止重複觸發
+    let rewardHandle, dismissHandle;
+    let earnedHandled = false;
 
-    rewardHandle = await AdMob.addListener(
-      'RewardInterstitialAdUserEarnedReward',
-      (data) => {
-        if (earnedHandled) return;
-        earnedHandled = true;
-        console.error('[AdMob] REWARD EARNED blockId=' + blockId, JSON.stringify(data));
-        if (isQA) { unlockQABonus(); }
-        else       { setAIUnlocked(blockId); }
-        if (callback) callback();
-      }
-    );
-    closedHandle = await AdMob.addListener(
-      'RewardInterstitialAdClosed',
-      () => {
-        console.error('[AdMob] AD CLOSED earned=' + earnedHandled);
-        if (rewardHandle) rewardHandle.remove();
-        if (closedHandle) closedHandle.remove();
-        preloadRewardedAd();
-      }
-    );
+    function doUnlock() {
+      if (earnedHandled) return;
+      earnedHandled = true;
+      console.error('[AdMob] REWARD UNLOCK blockId=' + blockId);
+      if (isQA) { unlockQABonus(); }
+      else       { setAIUnlocked(blockId); }
+      if (callback) callback();
+    }
+    function doCleanup() {
+      if (rewardHandle) rewardHandle.remove();
+      if (dismissHandle) dismissHandle.remove();
+      preloadRewardedAd();
+    }
+
+    // 正確事件名稱（@capacitor-community/admob 使用 on 前綴）
+    rewardHandle  = await AdMob.addListener('onRewardedInterstitialAdReward',    (d) => { console.error('[AdMob] onRewardedInterstitialAdReward', JSON.stringify(d)); doUnlock(); });
+    dismissHandle = await AdMob.addListener('onRewardedInterstitialAdDismissed', ()  => { console.error('[AdMob] onRewardedInterstitialAdDismissed'); doCleanup(); });
 
     _rewardedReady = false;
-    AdMob.showRewardInterstitialAd().catch(e => {
-      console.error('[AdMob] show error:', e.message, e);
-      if (rewardHandle) rewardHandle.remove();
-      if (closedHandle) closedHandle.remove();
-      preloadRewardedAd();
-    });
+    // showRewardInterstitialAd() 的 Promise 解析時也帶有獎勵資訊，作為雙重保險
+    AdMob.showRewardInterstitialAd()
+      .then((rewardItem) => {
+        console.error('[AdMob] showRewardInterstitialAd resolved', JSON.stringify(rewardItem));
+        doUnlock(); // 若 event 未觸發，Promise 解析時補發解鎖
+      })
+      .catch(e => {
+        console.error('[AdMob] show error:', e.message, e);
+        doCleanup();
+      });
   } else {
     _watchAdFallback(blockId, callback);
     if (isNative && !_rewardedReady) preloadRewardedAd();
