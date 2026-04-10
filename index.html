@@ -1074,38 +1074,36 @@ async function initAdMob() {
     console.log('[AdMob] banner loaded');
   } catch(e) { console.log('[AdMob] banner error:', e.message); }
 
-  // Always preload rewarded ads regardless of banner status
+  // Preload rewarded interstitial（單一共用）
   preloadRewardedAd();
-  preloadRewardedQAAd();
 }
 
 // ── ADMOB REWARDED INTERSTITIAL ───────────────────────────────────
-let _rewardedReady   = false; // AI 區塊解鎖廣告
-let _rewardedQAReady = false; // Q&A 問答廣告
+// AdMob 一次只能載入一則 Rewarded Interstitial，統一用單一狀態管理
+let _rewardedReady   = false;
+let _rewardedLoading = false;
 
 async function preloadRewardedAd() {
+  if (_rewardedLoading || _rewardedReady) return; // 防止重複載入
   const isNative = typeof window.Capacitor !== 'undefined' && window.Capacitor.isNativePlatform?.();
   if (!isNative) return;
+  const { AdMob } = window.Capacitor.Plugins;
+  if (!AdMob) return;
+  _rewardedLoading = true;
   try {
-    const { AdMob } = window.Capacitor.Plugins;
-    if (!AdMob) return;
     await AdMob.prepareRewardInterstitialAd({ adId: ADMOB_IDS.testRewardedInterstitial, isTesting: true });
-    _rewardedReady = true;
-    console.log('[AdMob] AI rewarded ready');
-  } catch(e) { _rewardedReady = false; console.error('[AdMob] AI rewarded preload error:', e.message, e); }
+    _rewardedReady   = true;
+    _rewardedLoading = false;
+    console.error('[AdMob] rewarded ready');
+  } catch(e) {
+    _rewardedReady   = false;
+    _rewardedLoading = false;
+    console.error('[AdMob] rewarded preload error:', e.message, e);
+  }
 }
 
-async function preloadRewardedQAAd() {
-  const isNative = typeof window.Capacitor !== 'undefined' && window.Capacitor.isNativePlatform?.();
-  if (!isNative) return;
-  try {
-    const { AdMob } = window.Capacitor.Plugins;
-    if (!AdMob) return;
-    await AdMob.prepareRewardInterstitialAd({ adId: ADMOB_IDS.testRewardedInterstitial, isTesting: true });
-    _rewardedQAReady = true;
-    console.log('[AdMob] Q&A rewarded ready');
-  } catch(e) { _rewardedQAReady = false; console.error('[AdMob] Q&A rewarded preload error:', e.message, e); }
-}
+// 舊名保留，呼叫同一個 function
+const preloadRewardedQAAd = preloadRewardedAd;
 
 // ── 贊助 / IAP ────────────────────────────────────────────────────
 // StoreKit 2 Product IDs (需在 App Store Connect 建立「消耗性項目」):
@@ -1573,20 +1571,27 @@ function setAIUnlocked(blockId){
 // blockId: 解鎖哪個區塊；callback: 解鎖後執行的 re-render
 function watchAd(blockId, callback) {
   const isNative = typeof window.Capacitor !== 'undefined' && window.Capacitor.isNativePlatform?.();
-  // Q&A 使用獨立廣告單元
-  const isQA      = blockId === 'qa-bonus';
-  const adReady   = isQA ? _rewardedQAReady : _rewardedReady;
-  const preloadFn = isQA ? preloadRewardedQAAd : preloadRewardedAd;
+  const isQA = blockId === 'qa-bonus';
+  console.error('[AdMob] watchAd called, blockId=' + blockId + ' ready=' + _rewardedReady + ' loading=' + _rewardedLoading);
 
-  if (isNative && adReady) {
+  if (isNative && _rewardedReady) {
     // ── Capacitor native: 真實 AdMob 獎勵式插頁廣告 ──
     const { AdMob } = window.Capacitor.Plugins;
     if (!AdMob) { _watchAdFallback(blockId, callback); return; }
 
+    // 監聽所有可能的 reward 事件名稱（debug 用）
+    const evNames = ['RewardInterstitialAdUserEarnedReward','RewardInterstitialAdRewarded',
+                     'onRewardInterstitialAdUserEarnedReward','AdMobRewardInterstitialAdUserEarnedReward'];
+    const dbgListeners = evNames.map(ev => AdMob.addListener(ev, (d) => {
+      console.error('[AdMob] REWARD EVENT FIRED:', ev, JSON.stringify(d));
+    }));
+
     const rewardListener = AdMob.addListener(
       'RewardInterstitialAdUserEarnedReward',
-      () => {
+      (data) => {
+        console.error('[AdMob] REWARD EARNED blockId=' + blockId, JSON.stringify(data));
         rewardListener.remove();
+        dbgListeners.forEach(l => l.remove());
         if (isQA) { unlockQABonus(); }
         else       { setAIUnlocked(blockId); }
         if (callback) callback();
@@ -1594,18 +1599,26 @@ function watchAd(blockId, callback) {
     );
     const closedListener = AdMob.addListener(
       'RewardInterstitialAdClosed',
-      () => { closedListener.remove(); preloadFn(); }
+      () => {
+        console.error('[AdMob] AD CLOSED');
+        closedListener.remove();
+        dbgListeners.forEach(l => l.remove());
+        preloadRewardedAd();
+      }
     );
 
-    if (isQA) _rewardedQAReady = false; else _rewardedReady = false;
-    AdMob.showRewardInterstitialAd().catch(e => {
-      console.log('[AdMob] show rewarded error:', e.message);
+    _rewardedReady = false;
+    AdMob.showRewardInterstitialAd().then(() => {
+      console.error('[AdMob] showRewardInterstitialAd resolved');
+    }).catch(e => {
+      console.error('[AdMob] show rewarded error:', e.message, e);
       rewardListener.remove(); closedListener.remove();
-      preloadFn();
+      dbgListeners.forEach(l => l.remove());
+      preloadRewardedAd();
     });
   } else {
     _watchAdFallback(blockId, callback);
-    if (isNative && !adReady) preloadFn();
+    if (isNative && !_rewardedReady) preloadRewardedAd();
   }
 }
 
