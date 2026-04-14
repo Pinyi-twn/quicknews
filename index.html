@@ -856,7 +856,7 @@ function getMarginData(mkt) {
   const up  = k => { const v = notionMonitor[k]; return v && v !== '--' ? (v.startsWith('+') || (!v.startsWith('-') && parseFloat(v) > 0)) : null; };
   if (mkt === 'tw') return [
     {n:'融資餘額',   v:nv('融資餘額'),   chg:nv('融資餘額變動'),   pct:pct('融資使用率'), up:up('融資餘額變動')},
-    {n:'融券餘額',   v:nv('融券餘額'),   chg:nv('融券餘額變動'),   pct:30,                up:up('融券餘額變動')},
+    {n:'融券餘額',   v:nv('融券餘額'),   chg:nv('融券餘額變動'),   pct:pct('融券使用率'), up:up('融券餘額變動')},
     {n:'融資使用率', v:nv('融資使用率'), chg:'',                    pct:pct('融資使用率'), up:null},
   ];
   // 美股 margin：只使用可自動取得的資料
@@ -1605,11 +1605,12 @@ function renderChipsAll() {
     html += `</div>`;
   } else {
     const ud = liveUSData || {};
+    const nmShort = sym => { const v = notionMonitor[sym + ' 短空%']; return v ? v + '%' : null; };
     const shortItems = [
-      {n:'輝達 NVDA',  v: ud.nvdaShort || SHORT_INT_FALLBACK['NVDA'], pct: parseFloat(ud.nvdaShort || SHORT_INT_FALLBACK['NVDA']) * 10},
-      {n:'特斯拉 TSLA', v: ud.tslaShort || SHORT_INT_FALLBACK['TSLA'], pct: parseFloat(ud.tslaShort || SHORT_INT_FALLBACK['TSLA']) * 10},
-      {n:'蘋果 AAPL',  v: SHORT_INT_FALLBACK['AAPL'],                 pct: parseFloat(SHORT_INT_FALLBACK['AAPL']) * 10},
-      {n:'標普ETF SPY', v: ud.spyShort  || SHORT_INT_FALLBACK['SPY'],  pct: parseFloat(ud.spyShort  || SHORT_INT_FALLBACK['SPY'])  * 10},
+      {n:'輝達 NVDA',   v: nmShort('NVDA') || ud.nvdaShort || '--', pct: parseFloat(notionMonitor['NVDA 短空%'] || ud.nvdaShort) * 10 || 0},
+      {n:'特斯拉 TSLA', v: nmShort('TSLA') || ud.tslaShort || '--', pct: parseFloat(notionMonitor['TSLA 短空%'] || ud.tslaShort) * 10 || 0},
+      {n:'蘋果 AAPL',   v: nmShort('AAPL') || '--',                  pct: parseFloat(notionMonitor['AAPL 短空%']) * 10 || 0},
+      {n:'標普ETF SPY', v: nmShort('SPY')  || ud.spyShort  || '--', pct: parseFloat(notionMonitor['SPY 短空%']  || ud.spyShort)  * 10 || 0},
     ];
     html += `<div class="card f4"><div class="sec-t" style="margin-bottom:10px">美股空頭倉位（短空比例）</div>`;
     shortItems.forEach(r => {
