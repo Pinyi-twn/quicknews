@@ -1603,10 +1603,15 @@ function renderChipsAll() {
     const ud = liveUSData || {};
     const nmShort = sym => { const v = notionMonitor[sym + ' 短空%']; return v ? v + '%' : null; };
     const shortItems = [
-      {n:'輝達 NVDA',   v: nmShort('NVDA') || ud.nvdaShort || '--', pct: parseFloat(notionMonitor['NVDA 短空%'] || ud.nvdaShort) * 10 || 0},
-      {n:'特斯拉 TSLA', v: nmShort('TSLA') || ud.tslaShort || '--', pct: parseFloat(notionMonitor['TSLA 短空%'] || ud.tslaShort) * 10 || 0},
-      {n:'蘋果 AAPL',   v: nmShort('AAPL') || '--',                  pct: parseFloat(notionMonitor['AAPL 短空%']) * 10 || 0},
-      {n:'Meta META',   v: nmShort('META') || '--',                  pct: parseFloat(notionMonitor['META 短空%']) * 10 || 0},
+      {n:'輝達 NVDA',        v: nmShort('NVDA')  || ud.nvdaShort || '--', pct: parseFloat(notionMonitor['NVDA 短空%']  || ud.nvdaShort) * 10 || 0},
+      {n:'特斯拉 TSLA',      v: nmShort('TSLA')  || ud.tslaShort || '--', pct: parseFloat(notionMonitor['TSLA 短空%']  || ud.tslaShort) * 10 || 0},
+      {n:'蘋果 AAPL',        v: nmShort('AAPL')  || '--',                  pct: parseFloat(notionMonitor['AAPL 短空%']) * 10 || 0},
+      {n:'Meta META',        v: nmShort('META')  || '--',                  pct: parseFloat(notionMonitor['META 短空%']) * 10 || 0},
+      {n:'微軟 MSFT',        v: nmShort('MSFT')  || '--',                  pct: parseFloat(notionMonitor['MSFT 短空%']) * 10 || 0},
+      {n:'谷歌 GOOGL',       v: nmShort('GOOGL') || '--',                  pct: parseFloat(notionMonitor['GOOGL 短空%'])* 10 || 0},
+      {n:'亞馬遜 AMZN',      v: nmShort('AMZN')  || '--',                  pct: parseFloat(notionMonitor['AMZN 短空%']) * 10 || 0},
+      {n:'摩根大通 JPM',     v: nmShort('JPM')   || '--',                  pct: parseFloat(notionMonitor['JPM 短空%'])  * 10 || 0},
+      {n:'埃克森美孚 XOM',   v: nmShort('XOM')   || '--',                  pct: parseFloat(notionMonitor['XOM 短空%'])  * 10 || 0},
     ];
     html += `<div class="card f4"><div class="sec-t" style="margin-bottom:10px">美股空頭倉位（短空比例）</div>`;
     shortItems.forEach(r => {
