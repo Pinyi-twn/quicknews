@@ -851,7 +851,8 @@ const CHIPS_INST=[
 // 融資融券：從 notionMonitor 取得，fallback 顯示 --
 function getMarginData(mkt) {
   const nv  = k => notionMonitor[k] || '--';
-  const pct = k => { const v = notionMonitor[k]; return v ? Math.min(100, Math.max(0, parseFloat(v))) : 50; };
+  // 融資使用率以 25% 為滿格（×4），缺值顯示空條（0）
+  const pct = k => { const v = notionMonitor[k]; return v ? Math.min(100, Math.max(0, parseFloat(v) * 4)) : 0; };
   const up  = k => { const v = notionMonitor[k]; return v && v !== '--' ? (v.startsWith('+') || (!v.startsWith('-') && parseFloat(v) > 0)) : null; };
   if (mkt === 'tw') return [
     {n:'融資餘額',   v:nv('融資餘額'),   chg:nv('融資餘額變動'),   pct:pct('融資使用率'), up:up('融資餘額變動')},
@@ -1595,7 +1596,7 @@ function renderChipsAll() {
       html += `<div class="margin-row">
         <div class="margin-name">${r.n}</div>
         <div class="margin-bar-w"><div class="margin-bar-f" style="width:${r.pct}%;background:${col}"></div></div>
-        <div class="margin-val" style="color:${col}">${r.v}${r.chg && r.chg !== '--' ? ` <span style="font-size:9px;color:${r.up===true?'var(--up)':r.up===false?'var(--dn)':'var(--txt3)'}">${r.chg}</span>` : ''}</div>
+        <div class="margin-val" style="color:${col}">${r.v}</div>
       </div>`;
     });
     html += `</div>`;
