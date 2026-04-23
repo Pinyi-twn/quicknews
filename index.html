@@ -1868,22 +1868,12 @@ function showQAGate(){
 function initAI(){
   document.getElementById('qpills').innerHTML=QUICK_QS.map(q=>`<div class="qpill" onclick="askQ('${q}')">${q}</div>`).join('');
   addMsg('ai','您好！我是 **速懶報 QuickNews** AI 助理 🦥⚡\n\n專精台股與美股，擅長市場情緒分析、三大法人籌碼解讀。有什麼想問的嗎？');
-  // 鍵盤彈出時調整 Q&A 頁面底部，避免輸入框被遮住
-  const adjustForKeyboard = (kbH) => {
-    const pg = document.getElementById('pg-ai');
-    if (!pg) return;
-    pg.style.bottom = kbH > 0 ? kbH + 'px' : '';
-    if (kbH > 0) setTimeout(() => { const cs = document.getElementById('chat-scroll'); if(cs) cs.scrollTop = cs.scrollHeight; }, 80);
-  };
-  const isNativePlatform = typeof window.Capacitor !== 'undefined' && window.Capacitor.isNativePlatform?.();
-  if (isNativePlatform && window.Capacitor.Plugins?.Keyboard) {
-    const { Keyboard } = window.Capacitor.Plugins;
-    Keyboard.addListener('keyboardWillShow', info => adjustForKeyboard(info.keyboardHeight));
-    Keyboard.addListener('keyboardWillHide', () => adjustForKeyboard(0));
-  } else if (window.visualViewport) {
+  // capacitor.config.json 已設 resize:"ionic"，Capacitor 自動縮短 WebView
+  // 鍵盤出現時 flex 佈局會自動把 chat-bar 貼在可視區底部，不需手動調整
+  if (window.visualViewport) {
     window.visualViewport.addEventListener('resize', function() {
-      const kbH = window.innerHeight - window.visualViewport.height;
-      adjustForKeyboard(kbH > 80 ? kbH : 0);
+      const cs = document.getElementById('chat-scroll');
+      if (cs) cs.scrollTop = cs.scrollHeight;
     });
   }
 }
