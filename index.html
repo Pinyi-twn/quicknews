@@ -957,8 +957,12 @@ window.addEventListener('DOMContentLoaded', () => {
   const t = nowTime();
   document.getElementById('sent-time').textContent  = t + ' 更新';
   document.getElementById('chips-time').textContent = t + ' 更新';
-  if (window.matchMedia('(prefers-color-scheme:light)').matches) {
-    isDark = false; document.body.dataset.theme = 'light';
+  const savedTheme = localStorage.getItem('qn_theme');
+  if (savedTheme === 'dark') {
+    // keep isDark = true (already initialized)
+  } else {
+    isDark = false;
+    document.body.dataset.theme = 'light';
     document.getElementById('dark-tog').classList.remove('on');
     document.getElementById('theme-btn').textContent = '☀️';
   }
@@ -1865,17 +1869,21 @@ function initAI(){
   document.getElementById('qpills').innerHTML=QUICK_QS.map(q=>`<div class="qpill" onclick="askQ('${q}')">${q}</div>`).join('');
   addMsg('ai','您好！我是 **速懶報 QuickNews** AI 助理 🦥⚡\n\n專精台股與美股，擅長市場情緒分析、三大法人籌碼解讀。有什麼想問的嗎？');
   // 鍵盤彈出時調整 Q&A 頁面底部，避免輸入框被遮住
-  if (window.visualViewport) {
+  const adjustForKeyboard = (kbH) => {
+    const pg = document.getElementById('pg-ai');
+    if (!pg) return;
+    pg.style.bottom = kbH > 0 ? kbH + 'px' : '';
+    if (kbH > 0) setTimeout(() => { const cs = document.getElementById('chat-scroll'); if(cs) cs.scrollTop = cs.scrollHeight; }, 80);
+  };
+  const isNativePlatform = typeof window.Capacitor !== 'undefined' && window.Capacitor.isNativePlatform?.();
+  if (isNativePlatform && window.Capacitor.Plugins?.Keyboard) {
+    const { Keyboard } = window.Capacitor.Plugins;
+    Keyboard.addListener('keyboardWillShow', info => adjustForKeyboard(info.keyboardHeight));
+    Keyboard.addListener('keyboardWillHide', () => adjustForKeyboard(0));
+  } else if (window.visualViewport) {
     window.visualViewport.addEventListener('resize', function() {
-      const pg = document.getElementById('pg-ai');
-      if (!pg) return;
-      const keyboardH = window.innerHeight - window.visualViewport.height;
-      if (keyboardH > 80) {
-        pg.style.bottom = keyboardH + 'px';
-        setTimeout(() => { const cs = document.getElementById('chat-scroll'); if(cs) cs.scrollTop = cs.scrollHeight; }, 100);
-      } else {
-        pg.style.bottom = '';
-      }
+      const kbH = window.innerHeight - window.visualViewport.height;
+      adjustForKeyboard(kbH > 80 ? kbH : 0);
     });
   }
 }
@@ -1949,6 +1957,7 @@ function toggleTheme(){
   document.body.dataset.theme=isDark?'':'light';
   document.getElementById('theme-btn').textContent=isDark?'🌙':'☀️';
   document.getElementById('dark-tog').classList.toggle('on',isDark);
+  localStorage.setItem('qn_theme',isDark?'dark':'light');
 }
 </script>
 </body>
