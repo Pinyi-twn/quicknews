@@ -1188,7 +1188,7 @@ async function preloadRewardedAd() {
   if (!AdMob) return;
   _rewardedLoading = true;
   try {
-    await AdMob.prepareRewardInterstitialAd({ adId: ADMOB_IDS.rewarded, isTesting: true });
+    await AdMob.prepareRewardInterstitialAd({ adId: ADMOB_IDS.rewarded, isTesting: false });
     _rewardedReady   = true;
     _rewardedLoading = false;
     console.error('[AdMob] rewarded ready');
