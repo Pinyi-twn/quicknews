@@ -43,7 +43,7 @@
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;-webkit-font-smoothing:antialiased}
 html,body{height:100%;overflow:hidden;background:var(--bg);font-family:var(--font)}
 body{color:var(--txt);max-width:430px;margin:0 auto}
-#app{height:100dvh;display:flex;flex-direction:column;overflow:hidden}
+#app{height:100%;display:flex;flex-direction:column;overflow:hidden}
 
 /* ── TOPBAR ── */
 #topbar{flex-shrink:0;height:calc(64px + env(safe-area-inset-top,0px));background:var(--bg);border-bottom:1px solid var(--bdr);display:flex;align-items:center;padding:env(safe-area-inset-top,0px) 14px 0;gap:10px;position:relative;z-index:30}
@@ -1188,7 +1188,7 @@ async function preloadRewardedAd() {
   if (!AdMob) return;
   _rewardedLoading = true;
   try {
-    await AdMob.prepareRewardInterstitialAd({ adId: ADMOB_IDS.rewarded, isTesting: false });
+    await AdMob.prepareRewardInterstitialAd({ adId: ADMOB_IDS.rewarded, isTesting: true });
     _rewardedReady   = true;
     _rewardedLoading = false;
     console.error('[AdMob] rewarded ready');
@@ -1868,20 +1868,9 @@ function showQAGate(){
 function initAI(){
   document.getElementById('qpills').innerHTML=QUICK_QS.map(q=>`<div class="qpill" onclick="askQ('${q}')">${q}</div>`).join('');
   addMsg('ai','您好！我是 **速懶報 QuickNews** AI 助理 🦥⚡\n\n專精台股與美股，擅長市場情緒分析、三大法人籌碼解讀。有什麼想問的嗎？');
-  // resize:"none" in capacitor.config.json — 用 keyboardWillShow 精確控制
-  const _isNative = typeof window.Capacitor !== 'undefined' && window.Capacitor.isNativePlatform?.();
-  if (_isNative && window.Capacitor.Plugins?.Keyboard) {
-    const { Keyboard } = window.Capacitor.Plugins;
-    Keyboard.addListener('keyboardWillShow', (info) => {
-      const pg = document.getElementById('pg-ai');
-      if (pg) pg.style.bottom = info.keyboardHeight + 'px';
-      setTimeout(() => { const cs = document.getElementById('chat-scroll'); if(cs) cs.scrollTop = cs.scrollHeight; }, 80);
-    });
-    Keyboard.addListener('keyboardWillHide', () => {
-      const pg = document.getElementById('pg-ai');
-      if (pg) pg.style.bottom = '';
-    });
-  } else if (window.visualViewport) {
+  // capacitor.config.json: resize:"body" — body 隨鍵盤縮小，#app 100% 跟著縮
+  // 不需要手動調整 pg-ai，只需將對話捲到底部
+  if (window.visualViewport) {
     window.visualViewport.addEventListener('resize', function() {
       const cs = document.getElementById('chat-scroll');
       if (cs) cs.scrollTop = cs.scrollHeight;
