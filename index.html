@@ -1023,12 +1023,10 @@ window.addEventListener('DOMContentLoaded', () => {
     try { await fetchAllPrices(); updateTicker(); updateIndices(); } catch(e) {}
   }, 30000);
 
-  // 全頁完整刷新（90秒）：情緒、籌碼、指數摘要
+  // 全頁完整刷新（90秒）：情緒、籌碼（股價已由30秒更新，不重複抓取）
   setInterval(async () => {
     try {
-      await fetchAllPrices();
       liveSent = await fetchSentimentData();
-      updateTicker(); updateIndices();
       renderSentiment(sentMkt); renderChips();
     } catch(e) {}
     document.getElementById('today-date').textContent = nowDateStr() + '　' + nowTime() + ' 更新';
@@ -1297,9 +1295,10 @@ function initDate(){
 }
 
 // ── 更新跑馬燈（真實資料） ────────────────────────────────────
+let _tickerHash = '';
 function updateTicker(){
   const tickerStocks = ['2330.TW','2454.TW','2317.TW','2382.TW','2303.TW','2881.TW','NVDA','AAPL','TSLA','^TWII','^IXIC','^VIX'];
-  const html = tickerStocks.map(sym => {
+  const items = tickerStocks.map(sym => {
     const info = STOCK_MAP[sym] || {};
     const raw  = liveData[sym] || FALLBACK_PRICES[sym] || {};
     const ch   = raw.ch ?? 0;
@@ -1307,8 +1306,14 @@ function updateTicker(){
     const up   = ch >= 0;
     const chStr = (up ? '+' : '') + ch.toFixed(2) + '%';
     const label = (info.label || sym) + (info.name ? ' ' + info.name : '');
-    return `<div class="tk-item"><span class="tk-n">${label}</span><span class="tk-v">${fmtPrice(p,sym)}</span><span class="tk-c ${up?'up':'dn'}">${chStr}</span></div>`;
-  }).join('');
+    return { label, p, ch, chStr, up, sym };
+  });
+  const hash = items.map(i => `${i.p}|${i.ch}`).join(',');
+  if (hash === _tickerHash) return; // 價格未變，不重啟動畫
+  _tickerHash = hash;
+  const html = items.map(i =>
+    `<div class="tk-item"><span class="tk-n">${i.label}</span><span class="tk-v">${fmtPrice(i.p,i.sym)}</span><span class="tk-c ${i.up?'up':'dn'}">${i.chStr}</span></div>`
+  ).join('');
   const tkEl = document.getElementById('tk');
   tkEl.innerHTML = html + html;
   tkEl.style.animation = 'none';
