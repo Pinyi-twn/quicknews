@@ -56,12 +56,13 @@ body{color:var(--txt);max-width:430px;margin:0 auto}
 
 /* ── TICKER ── */
 #ticker{flex-shrink:0;height:28px;background:var(--bg2);border-bottom:1px solid var(--bdr);overflow:hidden;display:flex;align-items:center}
-.tk-inner{display:flex;white-space:nowrap;animation:tkS 32s linear infinite}
-.tk-inner:hover{animation-play-state:paused}
-.tk-item{display:inline-flex;align-items:center;gap:5px;padding:0 12px;font-family:var(--mono);font-size:13.5px;border-right:1px solid var(--bdr)}
+.tk-inner{display:flex;white-space:nowrap;flex-shrink:0}
+.tk-inner.tk-go{animation:tkS 32s linear infinite}
+.tk-inner.tk-go:hover{animation-play-state:paused}
+.tk-item{display:inline-flex;align-items:center;gap:5px;padding:0 12px;font-family:var(--mono);font-size:13.5px;border-right:1px solid var(--bdr);flex-shrink:0}
 .tk-n{color:var(--txt3)}.tk-v{color:var(--txt)}
 .tk-c.up{color:var(--up)}.tk-c.dn{color:var(--dn)}
-@keyframes tkS{to{transform:translateX(-50%)}}
+@keyframes tkS{to{transform:translateX(var(--tk-half,-50%))}}
 
 /* ── CONTENT ── */
 #content{flex:1;overflow:hidden;position:relative}
@@ -1339,28 +1340,26 @@ function initDate(){
 // 動畫只啟動一次，後續只更新文字內容，絕不重建 DOM 或重啟動畫
 const TICKER_STOCKS = ['2330.TW','2454.TW','2317.TW','2382.TW','2303.TW','2881.TW','NVDA','AAPL','TSLA','^TWII','^IXIC','^VIX'];
 let _tkReady = false;
+let _tkStarted = false;
 
 function updateTicker(){
   const tkEl = document.getElementById('tk');
   if (!_tkReady) {
-    // 首次初始化：建立 DOM 結構並啟動動畫（只做一次）
     const html = TICKER_STOCKS.map(sym => {
       const info = STOCK_MAP[sym] || {};
       const label = (info.label || sym) + (info.name ? ' ' + info.name : '');
       return `<div class="tk-item"><span class="tk-n">${label}</span><span class="tk-v">---</span><span class="tk-c up">+0.00%</span></div>`;
     }).join('');
     tkEl.innerHTML = html + html;
-    tkEl.style.animation = 'none';
-    void tkEl.offsetWidth;
-    tkEl.style.animation = '';
     _tkReady = true;
   }
-  // 每次呼叫只更新文字，動畫持續不間斷
   const all = tkEl.querySelectorAll('.tk-item');
+  let hasData = false;
   TICKER_STOCKS.forEach((sym, i) => {
     const raw = liveData[sym] || {};
     const ch  = raw.ch ?? 0;
     const p   = raw.p  ?? 0;
+    if (p > 0) hasData = true;
     const up  = ch >= 0;
     const chStr = (up ? '+' : '') + ch.toFixed(2) + '%';
     const pStr  = fmtPrice(p, sym);
@@ -1373,6 +1372,12 @@ function updateTicker(){
       c.className = `tk-c ${up ? 'up' : 'dn'}`;
     }
   });
+  if (!_tkStarted && hasData) {
+    void tkEl.offsetWidth;
+    tkEl.style.setProperty('--tk-half', `-${tkEl.scrollWidth / 2}px`);
+    tkEl.classList.add('tk-go');
+    _tkStarted = true;
+  }
 }
 
 // ── 更新大盤指數列（真實資料） ────────────────────────────────
