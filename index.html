@@ -876,6 +876,22 @@ const TW_STOCK_LIST = [
   {n:'2382', name:'廣達'},
   {n:'2303', name:'聯電'},
 ];
+const TW_STOCK_MAP = {
+  '0050':'元大台灣50','0056':'元大高股息',
+  '1301':'台塑','1303':'南亞','1326':'台化',
+  '2002':'中鋼','2207':'和泰車',
+  '2303':'聯電','2308':'台達電','2317':'鴻海','2324':'仁寶','2327':'國巨',
+  '2330':'台積電','2337':'旺宏','2344':'華邦電','2353':'宏碁','2357':'華碩',
+  '2376':'技嘉','2379':'瑞昱','2382':'廣達','2395':'研華','2408':'南亞科',
+  '2412':'中華電','2454':'聯發科','2474':'可成',
+  '2603':'長榮','2609':'陽明','2615':'萬海',
+  '2801':'彰銀','2881':'富邦金','2882':'國泰金','2883':'開發金',
+  '2884':'玉山金','2885':'元大金','2886':'兆豐金','2891':'中信金','2892':'第一金',
+  '3008':'大立光','3034':'聯詠','3037':'欣興','3045':'台灣大',
+  '3711':'日月光投控','4904':'遠傳','4938':'和碩',
+  '5876':'上海銀','5880':'合庫金','6505':'台塑化',
+  '6669':'緯穎','6770':'力積電',
+};
 const QUICK_QS=['台積電現在能買嗎？','VIX飆高怎麼辦？','外資連買代表什麼？','融資高代表什麼？','今日籌碼解析','貪婪指數解讀'];
 
 let isDark=true, sentMkt='tw', chipsMktLs='tw', chatHistory=[];
@@ -1865,33 +1881,23 @@ function initAI(){
     Keyboard.addListener('keyboardWillShow', info => {
       const pg = document.getElementById('pg-ai');
       if (!pg?.classList.contains('on')) return;
-      const bar = pg.querySelector('.chat-bar');
-      const cs  = document.getElementById('chat-scroll');
-      if (bar) {
-        const barH = bar.offsetHeight;
-        const adH  = document.getElementById('ad-banner')?.offsetHeight || 60;
-        const navH = document.getElementById('nav')?.offsetHeight || 94;
-        bar.style.position = 'fixed';
-        bar.style.bottom   = info.keyboardHeight + 'px';
-        bar.style.left = '0'; bar.style.right = '0'; bar.style.zIndex = '200';
-        if (cs) {
-          cs.style.paddingBottom = Math.max(info.keyboardHeight + barH - adH - navH, barH + 10) + 'px';
-          setTimeout(() => cs.scrollTop = cs.scrollHeight, 80);
-        }
-      }
+      const adH = document.getElementById('ad-banner')?.offsetHeight || 60;
+      const navH = document.getElementById('nav')?.offsetHeight || 94;
+      // Shrink pg-ai from below so chat-bar ends exactly at keyboard top.
+      // Avoids position:fixed viewport-reference issues on iOS WKWebView.
+      pg.style.bottom = Math.max(info.keyboardHeight - adH - navH, 0) + 'px';
+      setTimeout(() => {
+        const cs = document.getElementById('chat-scroll');
+        if (cs) cs.scrollTop = cs.scrollHeight;
+      }, 80);
     });
     Keyboard.addListener('keyboardWillHide', () => {
-      const pg  = document.getElementById('pg-ai');
-      const bar = pg?.querySelector('.chat-bar');
-      const cs  = document.getElementById('chat-scroll');
-      if (bar) {
-        bar.style.position = '';
-        bar.style.bottom   = '';
-        bar.style.left     = '';
-        bar.style.right    = '';
-        bar.style.zIndex   = '';
-      }
-      if (cs) { cs.style.paddingBottom = ''; setTimeout(() => cs.scrollTop = cs.scrollHeight, 50); }
+      const pg = document.getElementById('pg-ai');
+      if (pg) pg.style.bottom = '';
+      setTimeout(() => {
+        const cs = document.getElementById('chat-scroll');
+        if (cs) cs.scrollTop = cs.scrollHeight;
+      }, 50);
     });
   } else if (window.visualViewport) {
     window.visualViewport.addEventListener('resize', () => {
@@ -1937,6 +1943,12 @@ async function sendMsg(){
     const usd  = liveData['USDTWD=X']; if (usd) marketContext['USD/TWD'] = usd.p.toFixed(2);
     if (liveSent?.tw?.score != null) marketContext['台股情緒分數'] = liveSent.tw.score + ' (' + liveSent.tw.label + ')';
     if (liveSent?.us?.score != null) marketContext['美股情緒分數'] = liveSent.us.score + ' (' + liveSent.us.label + ')';
+    // 偵測用戶訊息中的台股代號並注入正確公司名稱
+    const codes = text.match(/\b\d{4}\b/g);
+    if (codes) {
+      const hints = codes.filter(c => TW_STOCK_MAP[c]).map(c => `${c}=${TW_STOCK_MAP[c]}`);
+      if (hints.length) marketContext['台股代號對照'] = hints.join(', ');
+    }
     const r=await fetch(`${VERCEL_API}/api/ai`,{
       method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({
