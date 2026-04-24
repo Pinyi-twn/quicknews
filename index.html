@@ -1618,7 +1618,7 @@ function renderChipsAll() {
       html += `<div class="margin-row">
         <div class="margin-name">${r.n}</div>
         <div class="margin-bar-w"><div class="margin-bar-f" style="width:${r.pct}%;background:${col}"></div></div>
-        <div class="margin-val" style="color:${col}">${r.v}${r.chg && r.chg !== '--' ? ` <span style="font-size:9px;color:${r.up===true?'var(--up)':r.up===false?'var(--dn)':'var(--txt3)'}">${r.chg}</span>` : ''}</div>
+        <div class="margin-val" style="color:${col}">${r.v}</div>
       </div>`;
     });
     html += `</div>`;
