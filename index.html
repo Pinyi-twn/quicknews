@@ -533,7 +533,6 @@ function fmtPrice(p, sym) {
 }
 
 // ── 從 Vercel API 抓股價 ──────────────────────────────────────
-let _quoteFetched = false;
 async function fetchAllPrices() {
   const symbols = Object.keys(STOCK_MAP).join(',');
   try {
@@ -544,7 +543,6 @@ async function fetchAllPrices() {
       Object.entries(json.data).forEach(([sym, d]) => {
         liveData[sym] = { p: d.price, ch: d.change };
       });
-      _quoteFetched = true;
       console.log(`[QN] 股價 ${json.count} 支更新成功`);
     }
   } catch(e) {
@@ -655,12 +653,12 @@ async function fetchNotionMonitor() {
   }
 }
 
-// 將 Notion Monitor 的股價欄位套入 liveData（/api/quote 失敗時的主要數據來源）
+// 將 Notion Monitor 的股價欄位套入 liveData（只填尚未有數值的 symbol）
 // 格式："20,123 (+0.35%)" 或純數字 "18.5"
 function applyNotionPrices() {
-  if (_quoteFetched) return; // 已有即時報價，不覆蓋
   let count = 0;
   for (const [title, sym] of Object.entries(NOTION_TO_SYMBOL)) {
+    if (liveData[sym]?.p > 0) continue; // /api/quote 已有資料，不覆蓋
     const val = notionMonitor[title];
     if (!val || val === '--') continue;
     const m = val.match(/^([\d,]+(?:\.\d+)?)\s*\(([+-][\d.]+)%\)/);
@@ -1338,30 +1336,43 @@ function initDate(){
 }
 
 // ── 更新跑馬燈（真實資料） ────────────────────────────────────
-let _tickerHash = '';
+// 動畫只啟動一次，後續只更新文字內容，絕不重建 DOM 或重啟動畫
+const TICKER_STOCKS = ['2330.TW','2454.TW','2317.TW','2382.TW','2303.TW','2881.TW','NVDA','AAPL','TSLA','^TWII','^IXIC','^VIX'];
+let _tkReady = false;
+
 function updateTicker(){
-  const tickerStocks = ['2330.TW','2454.TW','2317.TW','2382.TW','2303.TW','2881.TW','NVDA','AAPL','TSLA','^TWII','^IXIC','^VIX'];
-  const items = tickerStocks.map(sym => {
-    const info = STOCK_MAP[sym] || {};
-    const raw  = liveData[sym] || FALLBACK_PRICES[sym] || {};
-    const ch   = raw.ch ?? 0;
-    const p    = raw.p  ?? 0;
-    const up   = ch >= 0;
-    const chStr = (up ? '+' : '') + ch.toFixed(2) + '%';
-    const label = (info.label || sym) + (info.name ? ' ' + info.name : '');
-    return { label, p, ch, chStr, up, sym };
-  });
-  const hash = items.map(i => `${i.p}|${i.ch}`).join(',');
-  if (hash === _tickerHash) return; // 價格未變，不重啟動畫
-  _tickerHash = hash;
-  const html = items.map(i =>
-    `<div class="tk-item"><span class="tk-n">${i.label}</span><span class="tk-v">${fmtPrice(i.p,i.sym)}</span><span class="tk-c ${i.up?'up':'dn'}">${i.chStr}</span></div>`
-  ).join('');
   const tkEl = document.getElementById('tk');
-  tkEl.innerHTML = html + html;
-  tkEl.style.animation = 'none';
-  void tkEl.offsetWidth;
-  tkEl.style.animation = '';
+  if (!_tkReady) {
+    // 首次初始化：建立 DOM 結構並啟動動畫（只做一次）
+    const html = TICKER_STOCKS.map(sym => {
+      const info = STOCK_MAP[sym] || {};
+      const label = (info.label || sym) + (info.name ? ' ' + info.name : '');
+      return `<div class="tk-item"><span class="tk-n">${label}</span><span class="tk-v">---</span><span class="tk-c up">+0.00%</span></div>`;
+    }).join('');
+    tkEl.innerHTML = html + html;
+    tkEl.style.animation = 'none';
+    void tkEl.offsetWidth;
+    tkEl.style.animation = '';
+    _tkReady = true;
+  }
+  // 每次呼叫只更新文字，動畫持續不間斷
+  const all = tkEl.querySelectorAll('.tk-item');
+  TICKER_STOCKS.forEach((sym, i) => {
+    const raw = liveData[sym] || {};
+    const ch  = raw.ch ?? 0;
+    const p   = raw.p  ?? 0;
+    const up  = ch >= 0;
+    const chStr = (up ? '+' : '') + ch.toFixed(2) + '%';
+    const pStr  = fmtPrice(p, sym);
+    for (const off of [0, TICKER_STOCKS.length]) {
+      const el = all[i + off];
+      if (!el) continue;
+      el.querySelector('.tk-v').textContent = pStr;
+      const c = el.querySelector('.tk-c');
+      c.textContent = chStr;
+      c.className = `tk-c ${up ? 'up' : 'dn'}`;
+    }
+  });
 }
 
 // ── 更新大盤指數列（真實資料） ────────────────────────────────
