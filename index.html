@@ -850,13 +850,16 @@ const CHIPS_INST=[
 ];
 // 融資融券：從 notionMonitor 取得，fallback 顯示 --
 function getMarginData(mkt) {
-  const nv  = k => notionMonitor[k] || '--';
+  const nv = k => notionMonitor[k] || '--';
+  const up = k => { const v = notionMonitor[k]; return v && v !== '--' ? (v.startsWith('+') || (!v.startsWith('-') && parseFloat(v) > 0)) : null; };
   if (mkt === 'tw') {
-    const mBal = parseFloat(notionMonitor['融資餘額']) || 0;
-    const sBal = parseFloat(notionMonitor['融券餘額']) || 0;
+    // 長條圖以真實餘額數據計算，以歷史參考高點為滿格：
+    //   融資餘額 5000億（近年台股高點）；融券餘額 30萬張（近年區間上緣）
+    const mBal = parseFloat(notionMonitor['融資餘額'] || '0') || 0; // "4271億" → 4271
+    const sBal = parseFloat(notionMonitor['融券餘額'] || '0') || 0; // "18.3萬張" → 18.3
     return [
-      {n:'融資餘額', v:nv('融資餘額'), chg:nv('融資餘額變動'), pct: mBal > 0 ? Math.min(100, mBal / 5000 * 100) : 0, up: true},
-      {n:'融券餘額', v:nv('融券餘額'), chg:nv('融券餘額變動'), pct: sBal > 0 ? Math.min(100, sBal / 30  * 100) : 0, up: false},
+      {n:'融資餘額', v:nv('融資餘額'), pct: mBal > 0 ? Math.min(100, mBal / 5000 * 100) : 0, up: true},
+      {n:'融券餘額', v:nv('融券餘額'), pct: sBal > 0 ? Math.min(100, sBal / 30  * 100) : 0, up: false},
     ];
   }
   // 美股 margin：只使用可自動取得的資料
@@ -1647,19 +1650,20 @@ function renderChipsAll() {
   }
 
   // ── Section 4: 槓桿風險儀表 ──
-  const rpRaw = isTW ? parseFloat(notionMonitor['融資使用率']) || null : null;
-  const rp = rpRaw ?? (isTW ? 50 : Math.min(100, Math.max(0, (vixCur-10)/40*100)));
-  const rpLabel = rpRaw != null ? Math.round(rpRaw) : (isTW ? '--' : vixCur.toFixed(1));
+  // 台股：以融資餘額相對歷史參考高點（5000億）估算槓桿水位（真實數據）
+  const mBalForGauge = isTW ? (parseFloat(notionMonitor['融資餘額'] || '0') || 0) : 0;
+  const rpRaw = isTW ? (mBalForGauge > 0 ? Math.round(mBalForGauge / 5000 * 100) : null) : null;
+  const rp = rpRaw ?? (isTW ? 0 : Math.min(100, Math.max(0, (vixCur-10)/40*100)));
+  const rpLabel = isTW ? (notionMonitor['融資餘額'] || '--') : vixCur.toFixed(1);
   const rc = rp > 70 ? 'var(--up)' : rp > 50 ? 'var(--gold)' : 'var(--dn)';
-  // 使用較大的 SVG：96×96，r=38，讓數字不卡到圓環
   const gaugeR = 46, gaugeCx = 60, gaugeW = 120;
   const gvRv = 2 * Math.PI * gaugeR, gvRf = gvRv * rp / 100;
-  const gaugeUnit = isTW ? '使用率%' : 'VIX';
+  const gaugeUnit = isTW ? '融資水位' : 'VIX';
   const gaugeLabel = isTW
     ? (rpRaw != null ? (rp >= 70 ? '⚠️ 高風險' : rp >= 50 ? '中等風險' : '低風險') : '更新中')
     : (vixCur > 25 ? '⚠️ 高波動' : vixCur < 15 ? '低波動' : '正常波動');
   const riskDesc = isTW
-    ? (rpRaw != null ? `台股融資使用率 ${rpLabel}%${rp>=75?'，已達高風險水位，建議控管槓桿。':rp>=60?'，處中高水位，留意槓桿風險。':'，目前尚在合理範圍。'}` : '融資使用率資料每日收盤後自動更新。')
+    ? (rpRaw != null ? `台股融資餘額 ${rpLabel}，相對歷史高點${rp}%${rp>=75?'，融資水位偏高，建議留意槓桿風險。':rp>=50?'，融資水位中等，留意市場波動。':'，融資水位尚低，槓桿壓力有限。'}` : '融資餘額資料每日收盤後自動更新。')
     : `VIX ${vixCur.toFixed(1)}，${vixCur>25?'波動偏高，市場謹慎。':vixCur<15?'波動偏低，市場樂觀。':'波動正常。'}`;
 
   html += `<div class="card f5"><div class="sec-t" style="margin-bottom:10px">槓桿風險儀表</div>
