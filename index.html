@@ -1018,6 +1018,12 @@ window.addEventListener('DOMContentLoaded', () => {
   }, 500);
 
   // ③ 定時刷新
+  // 跑馬燈快速刷新（30秒）：只更新股價 + ticker，不重新 render 全頁
+  setInterval(async () => {
+    try { await fetchAllPrices(); updateTicker(); updateIndices(); } catch(e) {}
+  }, 30000);
+
+  // 全頁完整刷新（90秒）：情緒、籌碼、指數摘要
   setInterval(async () => {
     try {
       await fetchAllPrices();
