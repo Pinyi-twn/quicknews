@@ -506,6 +506,24 @@ const STOCK_MAP = {
 // ── 備用靜態價格（Vercel 失敗時顯示 --- 而非假資料）─────────
 const FALLBACK_PRICES = {}; // 空的，不使用靜態假資料
 
+// Notion Monitor 欄位 → STOCK_MAP symbol 對照（cron 寫入的格式）
+const NOTION_TO_SYMBOL = {
+  '加權指數 TWII':   '^TWII',
+  '那斯達克 IXIC':   '^IXIC',
+  'S&P500 GSPC':    '^GSPC',
+  'VIX 恐慌指數':    '^VIX',
+  'USD/TWD 匯率':   'USDTWD=X',
+  '台積電 2330.TW':  '2330.TW',
+  '聯發科 2454.TW':  '2454.TW',
+  '鴻海 2317.TW':    '2317.TW',
+  '廣達 2382.TW':    '2382.TW',
+  '聯電 2303.TW':    '2303.TW',
+  '富邦金 2881.TW':  '2881.TW',
+  'NVDA 輝達':       'NVDA',
+  'AAPL 蘋果':       'AAPL',
+  'TSLA 特斯拉':     'TSLA',
+};
+
 function fmtPrice(p, sym) {
   if (!p) return '---';
   const isUS = STOCK_MAP[sym]?.mkt === 'us';
@@ -515,16 +533,18 @@ function fmtPrice(p, sym) {
 }
 
 // ── 從 Vercel API 抓股價 ──────────────────────────────────────
+let _quoteFetched = false;
 async function fetchAllPrices() {
   const symbols = Object.keys(STOCK_MAP).join(',');
   try {
     const res = await fetch(`${VERCEL_API}/api/quote?symbols=${encodeURIComponent(symbols)}`);
     if (!res.ok) throw new Error(res.status);
     const json = await res.json();
-    if (json.data) {
+    if (json.data && json.count > 0) {
       Object.entries(json.data).forEach(([sym, d]) => {
         liveData[sym] = { p: d.price, ch: d.change };
       });
+      _quoteFetched = true;
       console.log(`[QN] 股價 ${json.count} 支更新成功`);
     }
   } catch(e) {
@@ -635,6 +655,29 @@ async function fetchNotionMonitor() {
   }
 }
 
+// 將 Notion Monitor 的股價欄位套入 liveData（/api/quote 失敗時的主要數據來源）
+// 格式："20,123 (+0.35%)" 或純數字 "18.5"
+function applyNotionPrices() {
+  if (_quoteFetched) return; // 已有即時報價，不覆蓋
+  let count = 0;
+  for (const [title, sym] of Object.entries(NOTION_TO_SYMBOL)) {
+    const val = notionMonitor[title];
+    if (!val || val === '--') continue;
+    const m = val.match(/^([\d,]+(?:\.\d+)?)\s*\(([+-][\d.]+)%\)/);
+    if (m) {
+      const p = parseFloat(m[1].replace(/,/g, ''));
+      const ch = parseFloat(m[2]);
+      if (p > 0) { liveData[sym] = { p, ch }; count++; }
+    } else {
+      const p = parseFloat(val.replace(/,/g, ''));
+      if (p > 0) { liveData[sym] = { p, ch: 0 }; count++; }
+    }
+  }
+  if (count > 0) {
+    updateTicker(); updateIndices();
+    console.log(`[QN] Notion 股價套用 ${count} 支`);
+  }
+}
 
 // ── 美股 P/E 與籌碼計算 ──────────────────────────────────────
 // 策略：用已抓到的即時股價 + 靜態季度 EPS 計算 P/E
@@ -988,9 +1031,9 @@ window.addEventListener('DOMContentLoaded', () => {
       await Promise.all([
         // 股價
         fetchAllPrices().then(() => { updateTicker(); updateIndices(); }),
-        // Notion AI + Monitor（先填充，減少空白等待）
+        // Notion AI + Monitor（先填充，減少空白等待；同時套用 Notion 股價作為主要來源）
         Promise.all([fetchNotionAI(), fetchNotionMonitor()])
-          .then(() => { renderSentiment(sentMkt); renderChips(); updateMarketSummary(); }),
+          .then(() => { applyNotionPrices(); renderSentiment(sentMkt); renderChips(); updateMarketSummary(); }),
       ]);
     } catch(e) { console.log('[QN] 初始化錯誤:', e.message); }
 
@@ -1040,7 +1083,7 @@ window.addEventListener('DOMContentLoaded', () => {
     } catch(e) {}
     try {
       await Promise.all([fetchNotionAI(), fetchNotionMonitor()]);
-      renderSentiment(sentMkt); renderChips(); updateMarketSummary();
+      applyNotionPrices(); renderSentiment(sentMkt); renderChips(); updateMarketSummary();
     } catch(e) {}
   }, 600000);
 
