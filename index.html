@@ -196,9 +196,9 @@ body{color:var(--txt);max-width:430px;margin:0 auto}
 .ld:nth-child(2){animation-delay:.2s}.ld:nth-child(3){animation-delay:.4s}
 @keyframes ldot{0%,80%,100%{transform:scale(.75);opacity:.35}40%{transform:scale(1);opacity:1}}
 .qpills{display:flex;flex-wrap:wrap;gap:5px;padding:6px 14px 2px}
-.qpill{padding:5px 12px;border-radius:20px;border:1px solid var(--bdr2);background:var(--bg2);color:var(--txt);font-size:14px;cursor:pointer;transition:all .16s;font-weight:500}
+.qpill{padding:5px 9px;border-radius:20px;border:1px solid var(--bdr2);background:var(--bg2);color:var(--txt);font-size:13px;cursor:pointer;transition:all .16s;font-weight:500}
 .qpill:active{background:var(--bg3);transform:scale(.96)}
-.chat-bar{display:flex;gap:8px;padding:10px 14px;border-top:1px solid var(--bdr);background:var(--bg);flex-shrink:0;padding-bottom:max(10px,var(--safe-b))}
+.chat-bar{display:flex;gap:8px;padding:10px 14px;border-top:1px solid var(--bdr);background:var(--bg);flex-shrink:0}
 #ci{flex:1;background:var(--bg2);border:1px solid var(--bdr2);border-radius:24px;padding:9px 15px;font-size:16px;color:var(--txt);outline:none;font-family:var(--font);transition:border-color .2s}
 #ci:focus{border-color:rgba(240,192,64,.4)}
 #ci::placeholder{color:var(--txt3)}
@@ -892,7 +892,7 @@ const TW_STOCK_MAP = {
   '5876':'上海銀','5880':'合庫金','6505':'台塑化',
   '6669':'緯穎','6770':'力積電',
 };
-const QUICK_QS=['台積電現在能買嗎？','VIX飆高怎麼辦？','外資連買代表什麼？','融資高代表什麼？','今日籌碼解析','貪婪指數解讀'];
+const QUICK_QS=['台積電現在能買嗎？','VIX飆高怎麼辦？','融資高代表什麼？','今日籌碼解析','貪婪指數解讀'];
 
 let isDark=true, sentMkt='tw', chipsMktLs='tw', chatHistory=[];
 let notionAI = {}; // { '台股籌碼': {content, updatedAt}, '美股籌碼': {...}, '市場情緒': {...} }
@@ -969,7 +969,10 @@ window.addEventListener('DOMContentLoaded', () => {
   const t = nowTime();
   document.getElementById('sent-time').textContent  = t + ' 更新';
   document.getElementById('chips-time').textContent = t + ' 更新';
-  if (window.matchMedia('(prefers-color-scheme:light)').matches) {
+  const _savedTheme = localStorage.getItem('qn_theme');
+  if (_savedTheme === 'dark') {
+    // keep isDark = true (user explicitly chose dark)
+  } else {
     isDark = false; document.body.dataset.theme = 'light';
     document.getElementById('dark-tog').classList.remove('on');
     document.getElementById('theme-btn').textContent = '☀️';
@@ -1875,6 +1878,12 @@ function showQAGate(){
 function initAI(){
   document.getElementById('qpills').innerHTML=QUICK_QS.map(q=>`<div class="qpill" onclick="askQ('${q}')">${q}</div>`).join('');
   addMsg('ai','您好！我是 **速懶報 QuickNews** AI 助理 🦥⚡\n\n專精台股與美股，擅長市場情緒分析、三大法人籌碼解讀。有什麼想問的嗎？');
+  // Tap on chat area dismisses keyboard
+  const _cs0 = document.getElementById('chat-scroll');
+  if (_cs0) _cs0.addEventListener('touchstart', () => {
+    document.getElementById('ci')?.blur();
+    window.Capacitor?.Plugins?.Keyboard?.hide?.();
+  }, { passive: true });
   const _isNative = typeof window.Capacitor !== 'undefined' && window.Capacitor.isNativePlatform?.();
   if (_isNative && window.Capacitor.Plugins?.Keyboard) {
     const { Keyboard } = window.Capacitor.Plugins;
@@ -1982,6 +1991,7 @@ function toggleTheme(){
   document.body.dataset.theme=isDark?'':'light';
   document.getElementById('theme-btn').textContent=isDark?'🌙':'☀️';
   document.getElementById('dark-tog').classList.toggle('on',isDark);
+  localStorage.setItem('qn_theme',isDark?'dark':'light');
 }
 </script>
 </body>
