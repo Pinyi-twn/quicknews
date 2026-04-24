@@ -1411,7 +1411,7 @@ function toggleVoice(){
 // ── SENTIMENT ────────────────────────────────────────────────────
 function sentTab(el,mkt){
   sentMkt=mkt;
-  document.querySelectorAll('.mkt-tab').forEach(b=>b.classList.remove('on'));
+  el.closest('.mkt-tabs').querySelectorAll('.mkt-tab').forEach(b=>b.classList.remove('on'));
   el.classList.add('on');
   renderSentiment(mkt);
 }
