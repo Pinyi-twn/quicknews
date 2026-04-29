@@ -1226,8 +1226,8 @@ async function initAdMob() {
     });
     const slot = document.getElementById('ad-banner');
     if (slot) slot.style.background = 'transparent';
-    const ph = document.getElementById('admob-web-placeholder');
-    if (ph) ph.style.display = 'none';
+    // 保留 placeholder 作為 no-fill 時的視覺後備：native banner view 會疊在
+    // 它上方，有 fill 時自動遮住，no-fill 時用戶仍看得到「廣告」灰框，不會是純空白。
     console.log('[AdMob] banner loaded');
   } catch(e) { console.log('[AdMob] banner error:', e.message); }
 
