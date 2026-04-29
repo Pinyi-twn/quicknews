@@ -1131,11 +1131,36 @@ const ADMOB_IDS = {
   appId:        'ca-app-pub-2385853156442197~5265222002',
   banner:       'ca-app-pub-2385853156442197/2938441562',    // iOS banner
   testBanner:   'ca-app-pub-3940256099942544/2435281174',    // iOS test banner
-  rewarded:     'ca-app-pub-2385853156442197/9091314192',    // AI block rewarded interstitial
-  rewardedQA:   'ca-app-pub-2385853156442197/5543785579',    // Q&A rewarded interstitial
+  rewarded:     'ca-app-pub-2385853156442197/9091314192',    // AI block rewarded
+  rewardedQA:   'ca-app-pub-2385853156442197/5543785579',    // Q&A rewarded
   testRewarded: 'ca-app-pub-3940256099942544/1712485313',    // iOS test rewarded video
   testRewardedInterstitial: 'ca-app-pub-3940256099942544/6978759866', // iOS test rewarded interstitial
 };
+
+// ── 暫時診斷用：攔截所有 [AdMob] log，顯示在 fallback 彈窗 ──
+window._qnAdLog = [];
+window._qnBannerStatus = 'pending';
+(function patchAdLog() {
+  ['error', 'log', 'warn'].forEach(level => {
+    const orig = console[level];
+    console[level] = function(...args) {
+      try {
+        const first = args[0];
+        if (typeof first === 'string' && first.indexOf('[AdMob]') !== -1) {
+          const msg = args.map(a => {
+            if (typeof a === 'string') return a;
+            if (a && typeof a === 'object' && a.message) return a.message;
+            try { return JSON.stringify(a); } catch(_) { return String(a); }
+          }).join(' ');
+          const t = new Date().toTimeString().slice(0, 8);
+          window._qnAdLog.push(`${t} [${level}] ${msg}`);
+          if (window._qnAdLog.length > 40) window._qnAdLog.shift();
+        }
+      } catch(_) {}
+      return orig.apply(this, args);
+    };
+  });
+})();
 
 async function initAdMob() {
   const isNative = typeof window.Capacitor !== 'undefined' && window.Capacitor.isNativePlatform?.();
@@ -1145,12 +1170,15 @@ async function initAdMob() {
   }
   // ── Capacitor native environment ──────────────────────────────
   const { AdMob } = window.Capacitor.Plugins;
-  if (!AdMob) { console.log('[AdMob] plugin not found'); return; }
+  if (!AdMob) { console.error('[AdMob] plugin not found'); window._qnBannerStatus = 'no-plugin'; return; }
+
+  console.error('[AdMob] plugin found, prepare API:', typeof AdMob.prepareRewardVideoAd, 'show API:', typeof AdMob.showRewardVideoAd);
 
   // Initialize AdMob (separate try so banner failure doesn't block rewarded preload)
   try {
     await AdMob.initialize({ requestTrackingAuthorization: true });
-  } catch(e) { console.log('[AdMob] init error:', e.message); }
+    console.error('[AdMob] initialize ok');
+  } catch(e) { console.error('[AdMob] init error:', e.message, e); }
 
   // Show banner
   try {
@@ -1167,8 +1195,12 @@ async function initAdMob() {
     if (slot) slot.style.background = 'transparent';
     const ph = document.getElementById('admob-web-placeholder');
     if (ph) ph.style.display = 'none';
-    console.log('[AdMob] banner loaded');
-  } catch(e) { console.log('[AdMob] banner error:', e.message); }
+    window._qnBannerStatus = 'loaded';
+    console.error('[AdMob] banner loaded');
+  } catch(e) {
+    window._qnBannerStatus = 'error: ' + (e?.message || e);
+    console.error('[AdMob] banner error:', e.message, e);
+  }
 
   // 預載預設的獎勵廣告（AI 解析）。QA 那支等 QA gate 出現時再 lazy 預載。
   preloadRewardedAd('ai');
@@ -1795,11 +1827,16 @@ function _watchAdFallback(blockId, callback) {
   if (isNative) {
     // WKWebView 不支援 window.confirm()，改用自訂提示
     const el = document.createElement('div');
-    el.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center';
-    el.innerHTML = `<div style="background:var(--bg2);border:1px solid var(--bdr2);border-radius:18px;padding:24px 20px;max-width:300px;text-align:center">
-      <div style="font-size:16px;font-weight:700;margin-bottom:8px">廣告載入中</div>
-      <div style="font-size:13px;color:var(--txt2);line-height:1.6;margin-bottom:20px">廣告尚未就緒，請稍後再點選，或重新開啟頁面。</div>
-      <button onclick="this.closest('[style]').remove()" style="background:var(--gold);color:#1a1c2a;font-weight:700;border:none;border-radius:10px;padding:10px 28px;font-size:14px;cursor:pointer">確定</button>
+    el.id = 'qn-ad-fallback-modal';
+    el.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px';
+    const escapeHtml = (s) => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const logs = (window._qnAdLog || []).slice(-25).map(escapeHtml).join('\n') || '(no log captured)';
+    const stateLine = `unit=${_preparedUnit} preparing=${!!_preparePromise} busy=${_adBusy} blockId=${blockId} banner=${escapeHtml(window._qnBannerStatus||'?')}`;
+    el.innerHTML = `<div style="background:var(--bg2);border:1px solid var(--bdr2);border-radius:18px;padding:20px 16px;max-width:360px;width:100%;max-height:85vh;overflow:auto;text-align:left">
+      <div style="font-size:16px;font-weight:700;margin-bottom:8px;text-align:center">廣告載入中</div>
+      <div style="font-size:13px;color:var(--txt2);line-height:1.6;margin-bottom:12px;text-align:center">廣告尚未就緒，請稍後再點選，或重新開啟頁面。</div>
+      <div style="font-size:10px;color:var(--txt3);font-family:var(--mono,monospace);background:var(--bg3);padding:8px;border-radius:6px;white-space:pre-wrap;word-break:break-all;margin-bottom:12px;line-height:1.4">[debug] ${stateLine}\n\n${logs}</div>
+      <div style="text-align:center"><button onclick="document.getElementById('qn-ad-fallback-modal')?.remove()" style="background:var(--gold);color:#1a1c2a;font-weight:700;border:none;border-radius:10px;padding:10px 28px;font-size:14px;cursor:pointer">確定</button></div>
     </div>`;
     document.body.appendChild(el);
     return;
