@@ -1231,37 +1231,46 @@ async function initAdMob() {
     console.log('[AdMob] banner loaded');
   } catch(e) { console.log('[AdMob] banner error:', e.message); }
 
-  // Preload rewarded interstitial（單一共用）
-  preloadRewardedAd();
+  // 預載預設的獎勵廣告（AI 解析）。QA 那支等 QA gate 出現時再 lazy 預載。
+  preloadRewardedAd('ai');
 }
 
-// ── ADMOB REWARDED INTERSTITIAL ───────────────────────────────────
-// AdMob 一次只能載入一則 Rewarded Interstitial，統一用單一狀態管理
-let _rewardedReady   = false;
-let _rewardedLoading = false;
-let _adBusy          = false; // 防止重複點擊造成廣告衝突
+// ── ADMOB REWARDED ────────────────────────────────────────────────
+// 兩支獎勵廣告（AdMob 後台格式：「獎勵廣告 Rewarded」）：
+//   ai → ADMOB_IDS.rewarded   （AI 解析解鎖）
+//   qa → ADMOB_IDS.rewardedQA （AI 問答加碼 3 次）
+// 注意：plugin 內部只有單一 rewardedAd slot，呼叫 prepareRewardVideoAd 會覆蓋上一筆。
+// 因此用 _preparedUnit 追蹤目前 slot 裡裝的是哪一支；切換 unit 時必須重新 prepare。
+const _rewardUnitIds = {
+  ai: () => ADMOB_IDS.rewarded,
+  qa: () => ADMOB_IDS.rewardedQA,
+};
+let _preparedUnit   = null;  // 'ai' | 'qa' | null — 目前 plugin slot 內的 unit
+let _preparePromise = null;  // 進行中的 prepare promise（讓 watchAd 可以直接 await）
+let _adBusy         = false; // 防止重複點擊造成廣告衝突
 
-async function preloadRewardedAd() {
-  if (_rewardedLoading || _rewardedReady) return; // 防止重複載入
+function preloadRewardedAd(unit = 'ai') {
+  if (_preparedUnit === unit) return Promise.resolve();
+  if (_preparePromise) return _preparePromise; // 有人在 prepare 中 → join 同一個 promise
   const isNative = typeof window.Capacitor !== 'undefined' && window.Capacitor.isNativePlatform?.();
-  if (!isNative) return;
+  if (!isNative) return Promise.resolve();
   const { AdMob } = window.Capacitor.Plugins;
-  if (!AdMob) return;
-  _rewardedLoading = true;
-  try {
-    await AdMob.prepareRewardInterstitialAd({ adId: ADMOB_IDS.rewarded, isTesting: false });
-    _rewardedReady   = true;
-    _rewardedLoading = false;
-    console.error('[AdMob] rewarded ready');
-  } catch(e) {
-    _rewardedReady   = false;
-    _rewardedLoading = false;
-    console.error('[AdMob] rewarded preload error:', e.message, e);
-  }
+  if (!AdMob) return Promise.resolve();
+  _preparedUnit = null; // 即將被新的 prepare 蓋掉
+  _preparePromise = (async () => {
+    try {
+      await AdMob.prepareRewardVideoAd({ adId: _rewardUnitIds[unit](), isTesting: false });
+      _preparedUnit = unit;
+      console.error('[AdMob] rewarded ready:', unit);
+    } catch(e) {
+      _preparedUnit = null;
+      console.error('[AdMob] rewarded preload error:', unit, e.message, e);
+    } finally {
+      _preparePromise = null;
+    }
+  })();
+  return _preparePromise;
 }
-
-// 舊名保留，呼叫同一個 function
-const preloadRewardedQAAd = preloadRewardedAd;
 
 // 更新所有「看廣告」按鈕的視覺狀態
 function _setWatchBtnsState(loading) {
@@ -1789,11 +1798,12 @@ function isAIUnlocked(blockId){
 function setAIUnlocked(blockId){
   localStorage.setItem('qn_ai_unlock_' + blockId, String(Date.now() + 86400000)); // 24h
 }
-// 觀看獎勵廣告：native → AdMob 獎勵式插頁；browser → 確認彈窗模擬
+// 觀看獎勵廣告：native → AdMob 獎勵廣告；browser → 確認彈窗模擬
 // blockId: 解鎖哪個區塊；callback: 解鎖後執行的 re-render
 async function watchAd(blockId, callback) {
   const isNative = typeof window.Capacitor !== 'undefined' && window.Capacitor.isNativePlatform?.();
   const isQA = blockId === 'qa-bonus';
+  const unit = isQA ? 'qa' : 'ai';
 
   if (!isNative) { _watchAdFallback(blockId, callback); return; }
   const { AdMob } = window.Capacitor.Plugins;
@@ -1804,26 +1814,22 @@ async function watchAd(blockId, callback) {
   _adBusy = true;
   _setWatchBtnsState(true); // 立即給視覺回饋，防止用戶誤以為沒點到
 
-  // ── 廣告載入中：等待就緒後自動播放 ──
-  if (!_rewardedReady && _rewardedLoading) {
-    console.error('[AdMob] ad loading, waiting...');
-    const loaded = await new Promise(resolve => {
-      let handle;
-      const timer = setTimeout(() => { handle?.remove?.(); resolve(false); }, 10000);
-      AdMob.addListener('onRewardedInterstitialAdLoaded', () => {
-        clearTimeout(timer); handle?.remove?.(); resolve(true);
-      }).then(h => { handle = h; }).catch(() => resolve(false));
-    });
-    if (!loaded || !_rewardedReady) {
-      _adBusy = false; _setWatchBtnsState(false);
-      _watchAdFallback(blockId, callback); return;
+  // ── 若 slot 裝的不是目標 unit，需要 prepare 對應 unit（最多兩輪：原本進行中的 + 我們要的） ──
+  for (let attempt = 0; attempt < 2 && _preparedUnit !== unit; attempt++) {
+    console.error('[AdMob] ad preparing, waiting...', unit, 'attempt', attempt);
+    try {
+      await Promise.race([
+        preloadRewardedAd(unit),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('prepare timeout')), 10000)),
+      ]);
+    } catch(e) {
+      console.error('[AdMob] prepare wait failed:', e.message);
+      break;
     }
   }
-
-  if (!_rewardedReady) {
+  if (_preparedUnit !== unit) {
     _adBusy = false; _setWatchBtnsState(false);
-    _watchAdFallback(blockId, callback);
-    preloadRewardedAd(); return;
+    _watchAdFallback(blockId, callback); return;
   }
 
   // ── 廣告就緒：播放 ──
@@ -1846,20 +1852,21 @@ async function watchAd(blockId, callback) {
     showedHandle?.remove?.();
     rewardHandle?.remove?.();
     dismissHandle?.remove?.();
-    preloadRewardedAd(); // 重新預載（若 onRewardedInterstitialAdShowed 已提前預載則為 no-op）
+    // 重新預載 AI 那支（最常用路徑）；QA 那支等下次 QA gate 出現時 lazy 預載
+    preloadRewardedAd('ai');
   }
 
   // 廣告開始播放時就預載下一則（背景載入，用戶看廣告期間完成）
-  showedHandle  = await AdMob.addListener('onRewardedInterstitialAdShowed',  () => {
-    console.error('[AdMob] showed → preloading next');
+  showedHandle  = await AdMob.addListener('onRewardedVideoAdShowed',  () => {
+    console.error('[AdMob] showed → preloading next ai');
     showedHandle?.remove?.(); showedHandle = null;
-    preloadRewardedAd();
+    preloadRewardedAd('ai');
   });
-  rewardHandle  = await AdMob.addListener('onRewardedInterstitialAdReward',    (d) => { console.error('[AdMob] reward', JSON.stringify(d)); doUnlock(); });
-  dismissHandle = await AdMob.addListener('onRewardedInterstitialAdDismissed', ()  => { console.error('[AdMob] dismissed'); doCleanup(); });
+  rewardHandle  = await AdMob.addListener('onRewardedVideoAdReward',    (d) => { console.error('[AdMob] reward', JSON.stringify(d)); doUnlock(); });
+  dismissHandle = await AdMob.addListener('onRewardedVideoAdDismissed', ()  => { console.error('[AdMob] dismissed'); doCleanup(); });
 
-  _rewardedReady = false;
-  AdMob.showRewardInterstitialAd()
+  _preparedUnit = null; // 即將消費掉這個已 prepare 的 ad
+  AdMob.showRewardVideoAd()
     .then(rewardItem => {
       console.error('[AdMob] show resolved', JSON.stringify(rewardItem));
       if (rewardItem && (rewardItem.amount > 0 || rewardItem.type)) doUnlock();
@@ -1940,6 +1947,7 @@ function unlockQABonus(){
 function showQAGate(){
   const chat = document.getElementById('chat-scroll');
   if(!chat) return;
+  preloadRewardedAd('qa'); // 使用者出現 QA gate 時，提前預載 QA 那支獎勵廣告
   const gate = document.createElement('div');
   gate.className = 'qa-gate'; gate.id = 'qa-gate-msg';
   gate.innerHTML = `<div style="font-size:13px;font-weight:600;color:var(--txt2)">今日免費問答 ${QA_FREE_DAILY} 次已用完</div>
