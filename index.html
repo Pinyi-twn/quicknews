@@ -1188,15 +1188,32 @@ async function _scheduleDaily() {
 
 // ── ADMOB ─────────────────────────────────────────────────────────
 // Ad Unit IDs (from Google AdMob console)
-const ADMOB_IDS = {
-  appId:        'ca-app-pub-2385853156442197~5265222002',
-  banner:       'ca-app-pub-2385853156442197/2938441562',    // iOS banner
-  testBanner:   'ca-app-pub-3940256099942544/2435281174',    // iOS test banner
-  rewarded:     'ca-app-pub-2385853156442197/9091314192',    // AI block rewarded interstitial
-  rewardedQA:   'ca-app-pub-2385853156442197/5543785579',    // Q&A rewarded interstitial
-  testRewarded: 'ca-app-pub-3940256099942544/1712485313',    // iOS test rewarded video
-  testRewardedInterstitial: 'ca-app-pub-3940256099942544/6978759866', // iOS test rewarded interstitial
-};
+// Platform-aware AdMob IDs：iOS 跟 Android 在 AdMob 後台是兩個不同 app entry，
+// App ID 跟廣告單元 ID 完全不同；用 Capacitor.getPlatform() 在 runtime 切換。
+const ADMOB_IDS = (function() {
+  const platform = (typeof window.Capacitor !== 'undefined' && window.Capacitor.getPlatform)
+    ? window.Capacitor.getPlatform()
+    : 'web';
+  if (platform === 'android') {
+    return {
+      appId:        'ca-app-pub-2385853156442197~4384901518',
+      banner:       'ca-app-pub-2385853156442197/7258476860',  // Android banner
+      rewarded:     'ca-app-pub-2385853156442197/4632313522',  // Android AI 解析獎勵
+      rewardedQA:   'ca-app-pub-2385853156442197/7120633659',  // Android AI 問答獎勵
+      testBanner:   'ca-app-pub-3940256099942544/6300978111',  // Android test banner
+      testRewarded: 'ca-app-pub-3940256099942544/5224354917',  // Android test rewarded
+    };
+  }
+  // iOS（也是 web 的 fallback — web 不會真的呼叫 AdMob）
+  return {
+    appId:        'ca-app-pub-2385853156442197~5265222002',
+    banner:       'ca-app-pub-2385853156442197/2938441562',    // iOS banner
+    rewarded:     'ca-app-pub-2385853156442197/9091314192',    // iOS AI 解析獎勵
+    rewardedQA:   'ca-app-pub-2385853156442197/5543785579',    // iOS AI 問答獎勵
+    testBanner:   'ca-app-pub-3940256099942544/2435281174',    // iOS test banner
+    testRewarded: 'ca-app-pub-3940256099942544/1712485313',    // iOS test rewarded
+  };
+})();
 
 async function initAdMob() {
   const isNative = typeof window.Capacitor !== 'undefined' && window.Capacitor.isNativePlatform?.();
