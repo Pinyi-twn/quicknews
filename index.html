@@ -414,22 +414,22 @@ body{color:var(--txt);max-width:430px;margin:0 auto}
       如果這款 App 對你有幫助，一杯咖啡的支持都讓我們走得更遠。感謝你！
     </div>
     <div class="sponsor-tiers">
-      <button class="sponsor-tier" onclick="sponsorTier('com.quicknews.coffee','請喝咖啡')">
+      <button class="sponsor-tier" onclick="sponsorTier('coffee','請喝咖啡')">
         <span class="sponsor-tier-ico">☕</span>
         <span class="sponsor-tier-lbl">請喝咖啡</span>
         <span class="sponsor-tier-price">NT$ 30</span>
       </button>
-      <button class="sponsor-tier" onclick="sponsorTier('com.quicknews.bento','請吃便當')">
+      <button class="sponsor-tier" onclick="sponsorTier('bento','請吃便當')">
         <span class="sponsor-tier-ico">🍱</span>
         <span class="sponsor-tier-lbl">請吃便當</span>
         <span class="sponsor-tier-price">NT$ 90</span>
       </button>
-      <button class="sponsor-tier" onclick="sponsorTier('com.quicknews.supporter','成為支持者')">
+      <button class="sponsor-tier" onclick="sponsorTier('supporter','成為支持者')">
         <span class="sponsor-tier-ico">🌟</span>
         <span class="sponsor-tier-lbl">成為支持者</span>
         <span class="sponsor-tier-price">NT$ 270</span>
       </button>
-      <button class="sponsor-tier" onclick="sponsorTier('com.quicknews.superfan','超級贊助')">
+      <button class="sponsor-tier" onclick="sponsorTier('superfan','超級贊助')">
         <span class="sponsor-tier-ico">💎</span>
         <span class="sponsor-tier-lbl">超級贊助</span>
         <span class="sponsor-tier-price">NT$ 540</span>
@@ -1314,10 +1314,40 @@ function _setWatchBtnsState(loading) {
 //   com.quicknews.supporter → NT$270
 //   com.quicknews.superfan  → NT$540
 // 安裝: npm install @capgo/native-purchases && npx cap sync ios
-async function sponsorTier(productId, label) {
+// IAP product ID 在 iOS 跟 Android 兩個 store 完全不同（store 規則限制）。
+// HTML 按鈕傳入邏輯 key（'coffee'/'bento'/'supporter'/'superfan'），由這裡 map
+// 到當下平台對應的真實 product ID。
+const _IAP_PRODUCT_IDS = (function() {
+  const platform = (typeof window.Capacitor !== 'undefined' && window.Capacitor.getPlatform)
+    ? window.Capacitor.getPlatform()
+    : 'web';
+  if (platform === 'android') {
+    return {
+      coffee:    'quicknews_coffee_30',
+      bento:     'quicknews_bento_90',
+      supporter: 'quicknews_supporter_270',
+      superfan:  'quicknews_superfan_540',
+    };
+  }
+  // iOS（也是 web 的 fallback）
+  return {
+    coffee:    'com.quicknews.coffee',
+    bento:     'com.quicknews.bento',
+    supporter: 'com.quicknews.supporter',
+    superfan:  'com.quicknews.superfan',
+  };
+})();
+
+async function sponsorTier(tierKey, label) {
+  const productId = _IAP_PRODUCT_IDS[tierKey];
+  if (!productId) {
+    console.error('[IAP] unknown tier key:', tierKey);
+    alert('商品設定錯誤，請聯絡開發者。');
+    return;
+  }
   const isNative = typeof window.Capacitor !== 'undefined' && window.Capacitor.isNativePlatform?.();
   if (!isNative) {
-    alert(`感謝你想贊助「${label}」！\n\n此功能將在 App Store 版本中透過 Apple IAP 開放。\n敬請期待！ 🦥`);
+    alert(`感謝你想贊助「${label}」！\n\n此功能將在 App Store / Play 商店版本中透過商店 IAP 開放。\n敬請期待！ 🦥`);
     return;
   }
   try {
@@ -1326,7 +1356,7 @@ async function sponsorTier(productId, label) {
       alert('購買功能暫未開放，敬請期待！');
       return;
     }
-    // 取得商品資訊（含 App Store 真實價格）
+    // 取得商品資訊（含商店真實價格）
     const { products } = await NativePurchases.getProducts({
       productIdentifiers: [productId],
       productType: 'inapp'
