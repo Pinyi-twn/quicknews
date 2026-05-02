@@ -987,7 +987,10 @@ window.addEventListener('DOMContentLoaded', () => {
     } else {
       // env() not ready yet — use screen-size heuristic as initial approximation
       const isNative = typeof window.Capacitor !== 'undefined' && window.Capacitor.isNativePlatform?.();
-      if (isNative) {
+      const platform = isNative ? window.Capacitor.getPlatform() : 'web';
+      // Heuristic 限定 iOS：Android Capacitor WebView 預設位於 status bar 下方，
+      // env(safe-area-inset-top) 一律回 0，套用 iOS 機型 inset 會多出 47-62px 白邊。
+      if (isNative && platform === 'ios') {
         const sh = window.screen.height;
         // iOS 26 (iPhone 17+): 62px  |  iOS 18 Dynamic Island: 59px  |  Notch: 47px
         const inset = sh >= 900 ? 62   // iPhone 17 Pro Max / 16 Pro Max (screen.h=956)
@@ -2016,7 +2019,11 @@ function initAI(){
     window.Capacitor?.Plugins?.Keyboard?.hide?.();
   }, { passive: true });
   const _isNative = typeof window.Capacitor !== 'undefined' && window.Capacitor.isNativePlatform?.();
-  if (_isNative && window.Capacitor.Plugins?.Keyboard) {
+  const _platform = _isNative ? window.Capacitor.getPlatform() : 'web';
+  // iOS WKWebView 不會自動 resize，需要 JS 抬高 pg-ai 讓 chat-bar 對齊鍵盤上緣。
+  // Android Capacitor 預設 windowSoftInputMode=adjustResize，系統已自動縮小 WebView，
+  // 走 visualViewport fallback（只負責 scrollTop）即可，避免 double-lift 造成留白。
+  if (_isNative && _platform === 'ios' && window.Capacitor.Plugins?.Keyboard) {
     const { Keyboard } = window.Capacitor.Plugins;
     Keyboard.addListener('keyboardWillShow', info => {
       const pg = document.getElementById('pg-ai');
@@ -2038,6 +2045,33 @@ function initAI(){
         const cs = document.getElementById('chat-scroll');
         if (cs) cs.scrollTop = cs.scrollHeight;
       }, 50);
+    });
+  } else if (_isNative && _platform === 'android' && window.Capacitor.Plugins?.Keyboard) {
+    // Android: 系統 adjustResize 已縮小 WebView，但會留下 ad-banner + nav 在鍵盤上方，
+    // 跟 iOS（ad/nav 被鍵盤遮蓋）行為不一致。在 AI 頁面開鍵盤時暫時隱藏 ad/nav，
+    // 讓 chat-bar 緊貼鍵盤上緣，視覺與 iOS 對齊。
+    const { Keyboard } = window.Capacitor.Plugins;
+    Keyboard.addListener('keyboardDidShow', () => {
+      const pg = document.getElementById('pg-ai');
+      if (!pg?.classList.contains('on')) return;
+      const ad = document.getElementById('ad-banner');
+      const nav = document.getElementById('nav');
+      if (ad) ad.style.display = 'none';
+      if (nav) nav.style.display = 'none';
+      // 留 24px 讓 chat-bar 跟鍵盤建議列有視覺間距，避免感覺被擋住。
+      pg.style.paddingBottom = '24px';
+      setTimeout(() => {
+        const cs = document.getElementById('chat-scroll');
+        if (cs) cs.scrollTop = cs.scrollHeight;
+      }, 80);
+    });
+    Keyboard.addListener('keyboardDidHide', () => {
+      const pg = document.getElementById('pg-ai');
+      if (pg) pg.style.paddingBottom = '';
+      const ad = document.getElementById('ad-banner');
+      const nav = document.getElementById('nav');
+      if (ad) ad.style.display = '';
+      if (nav) nav.style.display = '';
     });
   } else if (window.visualViewport) {
     window.visualViewport.addEventListener('resize', () => {
