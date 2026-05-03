@@ -700,9 +700,15 @@ async function fetchWithFallback(url, timeout = 6000) {
 }
 
 // ── 歷史收盤價（1年日線，來源：Yahoo Finance v8 API）──────────
+// Android Capacitor WebView 嚴格 CORS、Yahoo 不發 ACAO header，所以 Android 走後端 proxy；
+// iOS WKWebView 用 capacitor:// scheme 跳過 CORS，直接打 Yahoo（行為跟 v1.5 一致）。
 async function fetchPriceHistory(symbol) {
   try {
-    const url = `${YF}${encodeURIComponent(symbol)}?interval=1d&range=1y`;
+    const _platform = (typeof window.Capacitor !== 'undefined' && window.Capacitor.getPlatform)
+      ? window.Capacitor.getPlatform() : 'web';
+    const url = (_platform === 'android')
+      ? `${VERCEL_API}/api/yahoo-proxy?symbol=${encodeURIComponent(symbol)}&interval=1d&range=1y`
+      : `${YF}${encodeURIComponent(symbol)}?interval=1d&range=1y`;
     const json = await fetchWithFallback(url, 8000);
     const arr = json?.chart?.result?.[0]?.indicators?.quote?.[0]?.close;
     return (arr || []).filter(v => v != null);
@@ -775,7 +781,12 @@ function getVIXBasedMood(mkt) {
 // ── 從 v8/chart meta 自動抓 EPS、Short Interest、ETF P/E ────
 async function fetchChartMeta(symbol) {
   try {
-    const data = await fetchWithFallback(`${YF}${symbol}?interval=1d&range=5d`, 6000);
+    const _platform = (typeof window.Capacitor !== 'undefined' && window.Capacitor.getPlatform)
+      ? window.Capacitor.getPlatform() : 'web';
+    const url = (_platform === 'android')
+      ? `${VERCEL_API}/api/yahoo-proxy?symbol=${encodeURIComponent(symbol)}&interval=1d&range=5d`
+      : `${YF}${symbol}?interval=1d&range=5d`;
+    const data = await fetchWithFallback(url, 6000);
     return data?.chart?.result?.[0]?.meta || null;
   } catch(e) { return null; }
 }
