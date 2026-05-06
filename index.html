@@ -2069,6 +2069,8 @@ function initAI(){
       const nav = document.getElementById('nav');
       if (ad) ad.style.display = 'none';
       if (nav) nav.style.display = 'none';
+      // 同時藏掉原生 AdMob banner（它渲染在 WebView 上層，display:none 對它無效）
+      try { window.Capacitor?.Plugins?.AdMob?.hideBanner?.(); } catch(e) {}
       // 留 24px 讓 chat-bar 跟鍵盤建議列有視覺間距，避免感覺被擋住。
       pg.style.paddingBottom = '24px';
       setTimeout(() => {
@@ -2083,6 +2085,8 @@ function initAI(){
       const nav = document.getElementById('nav');
       if (ad) ad.style.display = '';
       if (nav) nav.style.display = '';
+      // 恢復原生 AdMob banner
+      try { window.Capacitor?.Plugins?.AdMob?.resumeBanner?.(); } catch(e) {}
     });
   } else if (window.visualViewport) {
     window.visualViewport.addEventListener('resize', () => {
