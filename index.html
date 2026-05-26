@@ -2040,8 +2040,8 @@ function initAI(){
   const _isNative = typeof window.Capacitor !== 'undefined' && window.Capacitor.isNativePlatform?.();
   const _platform = _isNative ? window.Capacitor.getPlatform() : 'web';
   // iOS WKWebView 不會自動 resize，需要 JS 抬高 pg-ai 讓 chat-bar 對齊鍵盤上緣。
-  // Android Capacitor 預設 windowSoftInputMode=adjustResize，系統已自動縮小 WebView，
-  // 走 visualViewport fallback（只負責 scrollTop）即可，避免 double-lift 造成留白。
+  // Android 改設 windowSoftInputMode=adjustNothing（見 AndroidManifest），鍵盤同樣
+  // 「疊」在 WebView 上不縮小它，下方 Android branch 用相同結構抬升，行為對齊 iOS。
   if (_isNative && _platform === 'ios' && window.Capacitor.Plugins?.Keyboard) {
     const { Keyboard } = window.Capacitor.Plugins;
     Keyboard.addListener('keyboardWillShow', info => {
@@ -2066,36 +2066,62 @@ function initAI(){
       }, 50);
     });
   } else if (_isNative && _platform === 'android' && window.Capacitor.Plugins?.Keyboard) {
-    // Android: 系統 adjustResize 已縮小 WebView，但會留下 ad-banner + nav 在鍵盤上方，
-    // 跟 iOS（ad/nav 被鍵盤遮蓋）行為不一致。在 AI 頁面開鍵盤時暫時隱藏 ad/nav，
-    // 讓 chat-bar 緊貼鍵盤上緣，視覺與 iOS 對齊。
+    // Android: 改為對齊 iOS 已驗證做法 —— AndroidManifest 設 adjustNothing，
+    // 鍵盤「疊」在 WebView 上而不縮小 WebView。這樣 window.innerHeight 維持滿版、
+    // visualViewport.height 變成「鍵盤上方真正可見高度」，且這個值會包含 Samsung/Realme
+    // 等廠牌鍵盤的工具列（工具列是疊在 WebView 上的，visualViewport 看得到）。
+    // 之前 adjustResize 在不同 Samsung 機型把 innerHeight 弄成 650/432/82 完全不可靠，
+    // 改 adjustNothing 後改用 occlusion = innerHeight - visualViewport.height 來抬升，
+    // 結構與 iOS branch 相同（pg.style.bottom = occlusion - adH - navH）。
     const { Keyboard } = window.Capacitor.Plugins;
-    Keyboard.addListener('keyboardDidShow', () => {
+    let lastKbH = 0;
+    // 診斷讀數（僅內測版，下一版移除）。home 頁無鍵盤時也顯示，方便驗證 banner。
+    const dbg = document.createElement('div');
+    dbg.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:rgba(0,0,0,.78);color:#0f0;font:10px/1.35 monospace;padding:3px 6px;pointer-events:none;white-space:pre-wrap';
+    document.body.appendChild(dbg);
+    const navOffH = () => document.getElementById('nav')?.offsetHeight || 60;
+    const showDbg = () => {
+      const ci = document.getElementById('ci');
+      const r = ci ? ci.getBoundingClientRect() : { bottom: 0 };
       const pg = document.getElementById('pg-ai');
-      if (!pg?.classList.contains('on')) return;
-      const ad = document.getElementById('ad-banner');
-      const nav = document.getElementById('nav');
-      if (ad) ad.style.display = 'none';
-      if (nav) nav.style.display = 'none';
-      // 同時藏掉原生 AdMob banner（它渲染在 WebView 上層，display:none 對它無效）
-      try { window.Capacitor?.Plugins?.AdMob?.hideBanner?.(); } catch(e) {}
-      // 留 24px 讓 chat-bar 跟鍵盤建議列有視覺間距，避免感覺被擋住。
-      pg.style.paddingBottom = '24px';
-      setTimeout(() => {
-        const cs = document.getElementById('chat-scroll');
-        if (cs) cs.scrollTop = cs.scrollHeight;
-      }, 80);
-    });
-    Keyboard.addListener('keyboardDidHide', () => {
+      const occ = Math.round(window.innerHeight - (window.visualViewport?.height || window.innerHeight));
+      const safeB = navOffH() - 60; // #nav 高 = 60 + safe-area-inset-bottom
+      dbg.textContent = `iH=${window.innerHeight} vvH=${Math.round(window.visualViewport?.height||0)} occ=${occ} kbH=${lastKbH} lift=${pg?.style.bottom||'0'} ciB=${Math.round(r.bottom)} adH=${document.getElementById('ad-banner')?.offsetHeight||0} navH=${navOffH()} safeB=${safeB}`;
+    };
+    // 以 visualViewport 量到的實際遮蔽量抬升 pg-ai，讓 chat-bar 剛好落在鍵盤上緣。
+    const liftForKeyboard = () => {
       const pg = document.getElementById('pg-ai');
-      if (pg) pg.style.paddingBottom = '';
-      const ad = document.getElementById('ad-banner');
-      const nav = document.getElementById('nav');
-      if (ad) ad.style.display = '';
-      if (nav) nav.style.display = '';
-      // 恢復原生 AdMob banner
-      try { window.Capacitor?.Plugins?.AdMob?.resumeBanner?.(); } catch(e) {}
+      if (!pg?.classList.contains('on')) { showDbg(); return; }
+      const vvH = window.visualViewport?.height || window.innerHeight;
+      // occlusion：鍵盤(含廠牌工具列)疊住 WebView 底部的高度。adjustNothing 下 vvH 可靠。
+      const occlusion = Math.max(window.innerHeight - vvH, lastKbH);
+      const adH = document.getElementById('ad-banner')?.offsetHeight || 60;
+      const navH = navOffH();
+      pg.style.bottom = Math.max(occlusion - adH - navH, 0) + 'px';
+      const cs = document.getElementById('chat-scroll');
+      if (cs) setTimeout(() => { cs.scrollTop = cs.scrollHeight; }, 80);
+      showDbg();
+    };
+    Keyboard.addListener('keyboardWillShow', info => {
+      lastKbH = info?.keyboardHeight || 0;
+      liftForKeyboard();
+      setTimeout(liftForKeyboard, 60);   // 工具列展開後再抓一次最終遮蔽量
+      setTimeout(liftForKeyboard, 250);
     });
+    Keyboard.addListener('keyboardWillHide', () => {
+      lastKbH = 0;
+      const pg = document.getElementById('pg-ai');
+      if (pg) pg.style.bottom = '';
+      const cs = document.getElementById('chat-scroll');
+      if (cs) setTimeout(() => { cs.scrollTop = cs.scrollHeight; }, 50);
+      showDbg();
+    });
+    if (window.visualViewport) {
+      const onVV = () => { if (lastKbH > 0) liftForKeyboard(); else showDbg(); };
+      window.visualViewport.addEventListener('resize', onVV);
+      window.visualViewport.addEventListener('scroll', onVV);
+    }
+    setTimeout(showDbg, 1000); // 初始顯示（給 banner 驗證用）
   } else if (window.visualViewport) {
     window.visualViewport.addEventListener('resize', () => {
       const cs = document.getElementById('chat-scroll');
