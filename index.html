@@ -1247,10 +1247,10 @@ async function initAdMob() {
   // Show banner
   try {
     const adId = ADMOB_IDS.banner;
-    // iOS shipped 紅線：iOS path 必須保持 parseInt(--nav)=60 的舊行為，一個字不能變。
-    // 只有 Android 改用 #nav 實際 offsetHeight（= 60 + safe-area-inset-bottom）：
-    // Android 15 手勢導覽 (S24 FE) safe-b≠0，舊版只給 60 → banner 蓋住 nav；
-    // 改用 offsetHeight 後 safeB=0 的 Android 仍是 60，與舊行為一致無 regression。
+    // banner 貼齊 app 自己的 #nav：Android 傳 #nav.offsetHeight（含 safe-b 的實際高度），
+    // 搭配 plugin patch（listener 只套用此 margin、不另加 native inset）→ banner 底邊 = nav 上緣，
+    // 不蓋輸入框、不蓋分頁，完全靠量測 #nav 實際高度自適應。
+    // iOS 維持 parseInt(--nav)=60 原版行為不動（iOS plugin 自有 inset 處理，不可碰 shipped）。
     const _adPlatform = (typeof window.Capacitor !== 'undefined' && window.Capacitor.getPlatform)
       ? window.Capacitor.getPlatform() : 'web';
     const navH = (_adPlatform === 'android')
