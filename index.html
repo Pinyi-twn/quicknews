@@ -2075,26 +2075,40 @@ function initAI(){
     // 結構與 iOS branch 相同（pg.style.bottom = occlusion - adH - navH）。
     const { Keyboard } = window.Capacitor.Plugins;
     let lastKbH = 0;
+    // 基準 innerHeight（鍵盤關閉時的 WebView 高度）。Android 15 部份機型/模擬器
+    // 即使 manifest 設 adjustNothing 仍會 auto-resize WebView，這時 innerHeight 會縮。
+    // 比較 baseline vs 當下 innerHeight 來判斷「系統是否已經自己處理鍵盤」。
+    let baselineIH = window.innerHeight;
     // 診斷讀數（僅內測版，下一版移除）。home 頁無鍵盤時也顯示，方便驗證 banner。
     const dbg = document.createElement('div');
     dbg.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:rgba(0,0,0,.78);color:#0f0;font:10px/1.35 monospace;padding:3px 6px;pointer-events:none;white-space:pre-wrap';
     document.body.appendChild(dbg);
     const navOffH = () => document.getElementById('nav')?.offsetHeight || 60;
-    const showDbg = () => {
+    const showDbg = (extras) => {
       const ci = document.getElementById('ci');
       const r = ci ? ci.getBoundingClientRect() : { bottom: 0 };
       const pg = document.getElementById('pg-ai');
       const occ = Math.round(window.innerHeight - (window.visualViewport?.height || window.innerHeight));
-      const safeB = navOffH() - 60; // #nav 高 = 60 + safe-area-inset-bottom
-      dbg.textContent = `iH=${window.innerHeight} vvH=${Math.round(window.visualViewport?.height||0)} occ=${occ} kbH=${lastKbH} lift=${pg?.style.bottom||'0'} ciB=${Math.round(r.bottom)} adH=${document.getElementById('ad-banner')?.offsetHeight||0} navH=${navOffH()} safeB=${safeB}`;
+      const safeB = navOffH() - 60;
+      const sysResized = (window.innerHeight < baselineIH - 50) ? 'Y' : 'N';
+      dbg.textContent = `iH=${window.innerHeight} bIH=${baselineIH} sysR=${sysResized} vvH=${Math.round(window.visualViewport?.height||0)} occ=${occ} kbH=${lastKbH} lift=${pg?.style.bottom||'0'} ciB=${Math.round(r.bottom)} adH=${document.getElementById('ad-banner')?.offsetHeight||0} navH=${navOffH()} safeB=${safeB}` + (extras||'');
     };
-    // 以 visualViewport 量到的實際遮蔽量抬升 pg-ai，讓 chat-bar 剛好落在鍵盤上緣。
+    // 抬升公式（三種情境，純量測）：
+    // 1) 系統已 auto-resize WebView (iH < baseline)：不再 lift，系統處理過了 → 避免雙重抬升塌掉
+    // 2) iH 滿、vvH 縮 (正常 adjustNothing)：occlusion = iH - vvH
+    // 3) iH 滿、vvH 也滿 (Samsung Tab 那種 quirk)：用 Capacitor lastKbH 後備
     const liftForKeyboard = () => {
       const pg = document.getElementById('pg-ai');
       if (!pg?.classList.contains('on')) { showDbg(); return; }
-      const vvH = window.visualViewport?.height || window.innerHeight;
-      // occlusion：鍵盤(含廠牌工具列)疊住 WebView 底部的高度。adjustNothing 下 vvH 可靠。
-      const occlusion = Math.max(window.innerHeight - vvH, lastKbH);
+      const currentIH = window.innerHeight;
+      const systemResized = currentIH < baselineIH - 50; // 50px 容忍值
+      let occlusion;
+      if (systemResized) {
+        occlusion = 0; // 系統已縮 WebView，chat-bar 自然落在鍵盤上方
+      } else {
+        const vvH = window.visualViewport?.height || currentIH;
+        occlusion = Math.max(currentIH - vvH, lastKbH);
+      }
       const adH = document.getElementById('ad-banner')?.offsetHeight || 60;
       const navH = navOffH();
       pg.style.bottom = Math.max(occlusion - adH - navH, 0) + 'px';
@@ -2105,7 +2119,7 @@ function initAI(){
     Keyboard.addListener('keyboardWillShow', info => {
       lastKbH = info?.keyboardHeight || 0;
       liftForKeyboard();
-      setTimeout(liftForKeyboard, 60);   // 工具列展開後再抓一次最終遮蔽量
+      setTimeout(liftForKeyboard, 60);
       setTimeout(liftForKeyboard, 250);
     });
     Keyboard.addListener('keyboardWillHide', () => {
@@ -2114,7 +2128,8 @@ function initAI(){
       if (pg) pg.style.bottom = '';
       const cs = document.getElementById('chat-scroll');
       if (cs) setTimeout(() => { cs.scrollTop = cs.scrollHeight; }, 50);
-      showDbg();
+      // 鍵盤關掉後刷新 baseline（捕捉真實 no-keyboard innerHeight）
+      setTimeout(() => { baselineIH = window.innerHeight; showDbg(); }, 100);
     });
     if (window.visualViewport) {
       const onVV = () => { if (lastKbH > 0) liftForKeyboard(); else showDbg(); };
