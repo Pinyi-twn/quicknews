@@ -440,7 +440,7 @@ body{color:var(--txt);max-width:430px;margin:0 auto}
 
   <div class="card f3">
     <div class="sec-t" style="margin-bottom:10px">關於速懶報</div>
-    <div class="setting-row" style="padding:8px 0"><div class="s-lbl" style="font-size:14px">版本</div><div style="font-family:var(--mono);font-size:12px;color:var(--txt3)">1.0.12 Beta</div></div>
+    <div class="setting-row" style="padding:8px 0"><div class="s-lbl" style="font-size:14px">版本</div><div style="font-family:var(--mono);font-size:12px;color:var(--txt3)">1.0.13</div></div>
     <div class="setting-row" style="padding:8px 0"><div class="s-lbl" style="font-size:14px">品牌</div><div style="font-size:12px;color:var(--txt3)">速懶報 QuickNews 🦥⚡</div></div>
     <div class="setting-row" style="padding:8px 0"><div class="s-lbl" style="font-size:14px">AI 引擎</div><div style="font-size:12px;color:var(--gold)">Claude · Anthropic</div></div>
     <div class="setting-row" style="padding:8px 0;border:none"><div class="s-lbl" style="font-size:14px">資料來源</div><div style="font-size:12px;color:var(--txt3)">Yahoo Finance · TWSE · FRED</div></div>
@@ -1263,9 +1263,7 @@ async function initAdMob() {
     if (_adPlatform === 'android') {
       // 必須 await：確保 native listener 註冊完成才 showBanner，避免 onAdLoaded 先觸發、event 漏接。
       await AdMob.addListener('bannerAdSizeChanged', (size) => {
-        const reportedH = Number(size?.height) || 0;
-        window.__lastAdEvt = `${reportedH}x${Number(size?.width)||0}`;
-        const h = Math.max(reportedH, 60);
+        const h = Math.max(Number(size?.height) || 0, 60);
         document.documentElement.style.setProperty('--ad-h', h + 'px');
       });
     }
@@ -2092,21 +2090,6 @@ function initAI(){
     // 即使 manifest 設 adjustNothing 仍會 auto-resize WebView，這時 innerHeight 會縮。
     // 比較 baseline vs 當下 innerHeight 來判斷「系統是否已經自己處理鍵盤」。
     let baselineIH = window.innerHeight;
-    // 診斷讀數（僅內測版，下一版移除）。home 頁無鍵盤時也顯示，方便驗證 banner。
-    const dbg = document.createElement('div');
-    dbg.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:rgba(0,0,0,.78);color:#0f0;font:10px/1.35 monospace;padding:3px 6px;pointer-events:none;white-space:pre-wrap';
-    document.body.appendChild(dbg);
-    const navOffH = () => document.getElementById('nav')?.offsetHeight || 60;
-    const showDbg = (extras) => {
-      const ci = document.getElementById('ci');
-      const r = ci ? ci.getBoundingClientRect() : { bottom: 0 };
-      const pg = document.getElementById('pg-ai');
-      const occ = Math.round(window.innerHeight - (window.visualViewport?.height || window.innerHeight));
-      const safeB = navOffH() - 60;
-      const sysResized = (window.innerHeight < baselineIH - 50) ? 'Y' : 'N';
-      const cssAdH = (getComputedStyle(document.documentElement).getPropertyValue('--ad-h')||'').trim();
-      dbg.textContent = `iH=${window.innerHeight} bIH=${baselineIH} sysR=${sysResized} vvH=${Math.round(window.visualViewport?.height||0)} occ=${occ} kbH=${lastKbH} lift=${pg?.style.bottom||'0'} ciB=${Math.round(r.bottom)} adH=${document.getElementById('ad-banner')?.offsetHeight||0} navH=${navOffH()} safeB=${safeB} adEv=${window.__lastAdEvt||'none'} cssAdH=${cssAdH}` + (extras||'');
-    };
     // 策略：鍵盤開啟時（AI 頁）直接隱藏 #ad-banner + #nav + 原生 AdMob banner，
     // 完全繞開「原生 banner 螢幕位置 vs DOM placeholder 對齊」的廠牌差異（Samsung 的 IME inset
     // 比 WebView 縮量多 ~80 CSS px，導致 banner 位置上移、蓋住輸入框；其他廠牌差量不同、無法
@@ -2128,7 +2111,7 @@ function initAI(){
     };
     const liftForKeyboard = () => {
       const pg = document.getElementById('pg-ai');
-      if (!pg?.classList.contains('on')) { showDbg(); return; }
+      if (!pg?.classList.contains('on')) return;
       const currentIH = window.innerHeight;
       const systemResized = currentIH < baselineIH - 50; // 50px 容忍值
       let occlusion;
@@ -2144,7 +2127,6 @@ function initAI(){
       pg.style.bottom = Math.max(occlusion - adH - navH, 0) + 'px';
       const cs = document.getElementById('chat-scroll');
       if (cs) setTimeout(() => { cs.scrollTop = cs.scrollHeight; }, 80);
-      showDbg();
     };
     Keyboard.addListener('keyboardWillShow', info => {
       lastKbH = info?.keyboardHeight || 0;
@@ -2165,14 +2147,13 @@ function initAI(){
       const cs = document.getElementById('chat-scroll');
       if (cs) setTimeout(() => { cs.scrollTop = cs.scrollHeight; }, 50);
       // 鍵盤關掉後刷新 baseline（捕捉真實 no-keyboard innerHeight）
-      setTimeout(() => { baselineIH = window.innerHeight; showDbg(); }, 100);
+      setTimeout(() => { baselineIH = window.innerHeight; }, 100);
     });
     if (window.visualViewport) {
-      const onVV = () => { if (lastKbH > 0) liftForKeyboard(); else showDbg(); };
+      const onVV = () => { if (lastKbH > 0) liftForKeyboard(); };
       window.visualViewport.addEventListener('resize', onVV);
       window.visualViewport.addEventListener('scroll', onVV);
     }
-    setTimeout(showDbg, 1000); // 初始顯示（給 banner 驗證用）
   } else if (window.visualViewport) {
     window.visualViewport.addEventListener('resize', () => {
       const cs = document.getElementById('chat-scroll');
