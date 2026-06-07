@@ -1256,6 +1256,16 @@ async function initAdMob() {
     const navH = (_adPlatform === 'android')
       ? (document.getElementById('nav')?.offsetHeight || 60)
       : (parseInt(getComputedStyle(document.documentElement).getPropertyValue('--nav')) || 60);
+    // Android-only：AdMob ADAPTIVE_BANNER 的實際高度依機型/螢幕變動（50~120 CSS px 都看過），
+    // 若 DOM 佔位 (--ad-h) 固定 60 比實際小，native banner 視圖會往上突出蓋住 #ci 輸入框。
+    // 監聽 bannerAdSizeChanged 把實際高度寫回 --ad-h，#content 自動退讓、輸入框永遠在 banner 上方。
+    // iOS 不走這條（iOS shipped 的 adaptive banner 一直是 ~50，60 佔位足夠且不能動 shipped 行為）。
+    if (_adPlatform === 'android') {
+      AdMob.addListener('bannerAdSizeChanged', (size) => {
+        const h = Math.max(Number(size?.height) || 60, 60);
+        document.documentElement.style.setProperty('--ad-h', h + 'px');
+      });
+    }
     await AdMob.showBanner({
       adId,
       adSize:   'ADAPTIVE_BANNER',
